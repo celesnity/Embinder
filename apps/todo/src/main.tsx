@@ -6,7 +6,7 @@ import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MinderProvider url="ws://127.0.0.1:7331/app">
+    <MinderProvider url="ws://127.0.0.1:7331/app" viz>
       <App />
     </MinderProvider>
   </StrictMode>,

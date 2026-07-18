@@ -1,6 +1,6 @@
 import { useReducer, useRef, useState } from 'react';
 import { z } from 'zod';
-import { useWebMCP } from '@minder/react';
+import { useWebMCP, minderAnchor } from '@minder/react';
 import { reducer, initialTasks, type Task } from './store';
 import './App.css';
 
@@ -96,8 +96,8 @@ export default function App() {
           onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="New task…"
         />
-        <button onClick={add}>Add</button>
-        <button className="danger" onClick={() => dispatch({ type: 'CLEAR' })}>
+        <button {...minderAnchor('add_task')} onClick={add}>Add</button>
+        <button className="danger" {...minderAnchor('delete_all_tasks')} onClick={() => dispatch({ type: 'CLEAR' })}>
           Clear all
         </button>
       </div>
@@ -108,7 +108,7 @@ export default function App() {
             <input type="checkbox" checked={t.done} onChange={() => dispatch({ type: 'TOGGLE', id: t.id })} />
             <span>{t.text}</span>
             <code>{t.id}</code>
-            <button className="x" onClick={() => dispatch({ type: 'DELETE', id: t.id })}>
+            <button className="x" {...minderAnchor('delete_task')} onClick={() => dispatch({ type: 'DELETE', id: t.id })}>
               ✕
             </button>
           </li>

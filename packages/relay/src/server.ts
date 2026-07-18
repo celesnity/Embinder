@@ -25,7 +25,7 @@ import { loadPolicy, riskOf } from './policy.js';
 import { gate, type GateCtx } from './gate.js';
 import { mintToken, tokenMatches, hostAllowed, originAllowed } from './security.js';
 import { mountApprovalRoutes } from './approval-routes.js';
-import { enableCliApprovals } from './approval.js';
+import { enableCliApprovals, canonicalize } from './approval.js';
 
 // A broken stdout pipe (parent process killed us mid-log) must not crash the relay.
 process.stdout.on('error', () => {});
@@ -56,12 +56,19 @@ try {
 let appSocket: WebSocket | undefined;
 const pending = new Map<string, (result: unknown) => void>();
 
-function forwardToBrowser(name: string, args: unknown): Promise<CallToolResult> {
+// T-K2: display-only phase events relay→app (intent/gate/decided). Never on the MCP path.
+function emitToApp(type: string, payload: Record<string, unknown>): void {
+  if (appSocket?.readyState === WebSocket.OPEN) {
+    appSocket.send(JSON.stringify({ type, ...payload }));
+  }
+}
+
+// The lifecycle id is created once in the handler and reused for intent/gate/decided/call/result.
+function forwardToBrowser(id: string, name: string, args: unknown): Promise<CallToolResult> {
   return new Promise((resolvePromise, reject) => {
     if (!appSocket || appSocket.readyState !== WebSocket.OPEN) {
       return reject(new Error('app not connected'));
     }
-    const id = randomUUID();
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error(`tool "${name}" timed out`));
@@ -100,7 +107,14 @@ function registerGatedTool(
 ) {
   if (tools.has(name)) tools.get(name)!.remove();
   const tool = server.registerTool(name, def.config, async (args: unknown, extra) => {
+    const id = randomUUID(); // one id for the whole lifecycle (T-K2)
     const risk = riskOf(policy, name, def.destructive);
+    const canonicalPreview = canonicalize(args);
+
+    // T-K: tell the app what's about to happen (display only — app executes nothing until `call`).
+    emitToApp('intent', { id, name, argsPreview: canonicalPreview });
+    emitToApp('gate', { id, status: risk === 'destructive' ? 'awaiting' : 'auto' });
+
     const ctx: GateCtx = {
       session: extra.sessionId,
       auditPath: AUDIT_PATH,
@@ -114,9 +128,16 @@ function registerGatedTool(
           })
           .catch(() => {}),
     };
-    // gate pauses/denies destructive, passes read/write, and returns the CANONICAL args to run.
-    const canonicalArgs = await gate(name, args, risk, extra.signal, ctx);
-    return forwardToBrowser(name, canonicalArgs);
+
+    try {
+      // gate pauses/denies destructive, passes read/write, returns the CANONICAL args to run.
+      const canonicalArgs = await gate(name, args, risk, extra.signal, ctx);
+      if (risk === 'destructive') emitToApp('decided', { id, decision: 'approved' });
+      return await forwardToBrowser(id, name, canonicalArgs);
+    } catch (err) {
+      if (risk === 'destructive') emitToApp('decided', { id, decision: 'denied' });
+      throw err;
+    }
   });
   tools.set(name, tool);
 }

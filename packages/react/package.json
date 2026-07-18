@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@mcp-b/react-webmcp": "^4.0.0",
+    "driver.js": "^1.8.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {

@@ -69,6 +69,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | **T-H1** WebMCP-native feature-detect path | ✅ | provider captures native surface, mirrors registrations (degrades to relay) |
 | **T-I1** LM Studio wiring | ✅ | `mcp.json` committed; setup in `docs/DEMO.md` |
 | **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`) |
+| **T-K0–K5** Spotlight + gate viz (`MINDER_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
 
 ---
 

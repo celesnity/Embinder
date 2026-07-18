@@ -9,18 +9,22 @@
 //     can't close the socket and leave it dead. The socket lives for the page lifetime.
 //  3. Registrations buffer in an outbox until the socket opens (token is fetched async, T-G1).
 //  4. T-H1: if a native WebMCP surface exists, registrations mirror to it too.
+//  5. T-K: relay phase events (intent/gate/decided/call) are forwarded to an optional spotlight
+//     listener; the driver.js spotlight is dynamically imported ONLY when viz is on.
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { getModelContext, type ModelContextSurface, type ToolDescriptor } from './model-context.js';
+import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no driver.js at runtime
 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
+const PHASE_TYPES = new Set(['intent', 'gate', 'decided']);
 
 interface Shim {
   modelContext: ModelContextSurface;
+  setPhaseListener(fn: ((m: PhaseMessage) => void) | undefined): void;
 }
 let singleton: Shim | undefined;
 
-// Meta sent to the relay (execute stays local — only its signature crosses the wire).
 function stripDescriptor(d: ToolDescriptor) {
   return {
     name: d.name,
@@ -39,6 +43,7 @@ function createShim(url: string, token: string | undefined, native: ModelContext
   const tools = new Map<string, ToolDescriptor>();
   const outbox: string[] = [];
   let ws: WebSocket | undefined;
+  let phaseListener: ((m: PhaseMessage) => void) | undefined;
 
   const flush = () => {
     if (ws?.readyState !== WebSocket.OPEN) return;
@@ -49,7 +54,6 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     flush();
   };
 
-  // Resolve the token (prop wins; otherwise fetch from the relay), then open the socket.
   (async () => {
     let t = token;
     if (!t) {
@@ -68,10 +72,22 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     );
     ws.addEventListener('message', (e) => {
       const m = JSON.parse(e.data);
+      // T-K: forward display-only phase events to the spotlight.
+      if (PHASE_TYPES.has(m.type)) {
+        phaseListener?.(m);
+        return;
+      }
       if (m.type !== 'call') return;
+      phaseListener?.(m); // running
       Promise.resolve(tools.get(m.name)?.execute(m.args))
-        .then((result) => send({ type: 'result', id: m.id, result }))
-        .catch((error) => send({ type: 'result', id: m.id, error: String(error) }));
+        .then((result) => {
+          phaseListener?.({ type: 'done', id: m.id });
+          send({ type: 'result', id: m.id, result });
+        })
+        .catch((error) => {
+          phaseListener?.({ type: 'done', id: m.id });
+          send({ type: 'result', id: m.id, error: String(error) });
+        });
     });
   })();
 
@@ -79,7 +95,7 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     registerTool(descriptor, options) {
       tools.set(descriptor.name, descriptor);
       send({ type: 'register', tool: stripDescriptor(descriptor) });
-      native?.registerTool(descriptor, options); // T-H1: mirror to native surface if present
+      native?.registerTool(descriptor, options); // T-H1
       options?.signal?.addEventListener('abort', () => {
         tools.delete(descriptor.name);
         send({ type: 'unregister', name: descriptor.name });
@@ -87,14 +103,18 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     },
   };
 
-  return { modelContext };
+  return {
+    modelContext,
+    setPhaseListener(fn) {
+      phaseListener = fn;
+    },
+  };
 }
 
-// Idempotent install — safe to call on every render.
 function ensureShim(url: string, token?: string): void {
   if (typeof window === 'undefined') return;
-  if (singleton) return; // already installed this page
-  const native = getModelContext(); // capture a native WebMCP surface before we overwrite (T-H1)
+  if (singleton) return;
+  const native = getModelContext();
   singleton = createShim(url, token, native);
   Object.defineProperty(document, 'modelContext', {
     value: singleton.modelContext,
@@ -108,10 +128,29 @@ export interface MinderProviderProps {
   url?: string;
   /** Optional explicit ws token (otherwise fetched from the relay, T-G1). */
   token?: string;
+  /** T-K: enable the agent-action spotlight + gate visualization (D7 polish, off by default). */
+  viz?: boolean;
 }
 
-export function MinderProvider({ children, url = DEFAULT_URL, token }: MinderProviderProps) {
-  // Install during render — runs before child useWebMCP effects. Idempotent + singleton-backed.
+export function MinderProvider({ children, url = DEFAULT_URL, token, viz = false }: MinderProviderProps) {
   ensureShim(url, token);
+
+  // T-K: load the spotlight only when the flag is on (zero driver.js cost when off).
+  useEffect(() => {
+    if (!viz || !singleton) return;
+    let sp: Spotlight | undefined;
+    let cancelled = false;
+    import('./spotlight.js').then(({ createSpotlight }) => {
+      if (cancelled) return;
+      sp = createSpotlight(`${httpBaseFrom(url)}/approve`);
+      singleton!.setPhaseListener((m) => sp!.handle(m));
+    });
+    return () => {
+      cancelled = true;
+      singleton?.setPhaseListener(undefined);
+      sp?.destroy();
+    };
+  }, [viz, url]);
+
   return <>{children}</>;
 }
