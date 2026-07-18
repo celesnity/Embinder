@@ -25,6 +25,7 @@ import { loadPolicy, riskOf } from './policy.js';
 import { gate, type GateCtx } from './gate.js';
 import { mintToken, tokenMatches, hostAllowed, originAllowed } from './security.js';
 import { mountApprovalRoutes } from './approval-routes.js';
+import { mountChatRoute } from './chat.js';
 import { enableCliApprovals, canonicalize } from './approval.js';
 
 // A broken stdout pipe (parent process killed us mid-log) must not crash the relay.
@@ -214,6 +215,8 @@ app.get('/app-token', (req: Request, res: Response) => {
 
 // T-E1/E2: approval surface (out-of-tab).
 mountApprovalRoutes(app, APPROVER_TOKEN);
+// T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
+mountChatRoute(app, { toolRegistry, runGatedCall });
 enableCliApprovals();
 
 const httpServer = app.listen(PORT, HOST, () => {

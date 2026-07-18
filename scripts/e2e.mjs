@@ -6,9 +6,59 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { createServer } from 'node:http';
 import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+// Minimal OpenAI-compatible /v1/chat/completions stub (streaming). Turn 1: emit a tool call.
+// Turn 2 (messages contain a tool role): emit a final text chunk. Enough to exercise the gate.
+function startStubLLM(toolName, toolArgs) {
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const payload = JSON.parse(body || '{}');
+      const hasToolResult = (payload.messages ?? []).some((m) => m.role === 'tool');
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+      const send = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+      const id = 'chatcmpl-stub';
+      const created = 1700000000; // fixed; stub is deterministic
+      if (!hasToolResult) {
+        // stream one tool call
+        send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: toolName, arguments: '' } }] }, finish_reason: null }] });
+        send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolArgs) } }] }, finish_reason: null }] });
+        send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] });
+      } else {
+        send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { role: 'assistant', content: 'done' }, finish_reason: null }] });
+        send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+      }
+      res.write('data: [DONE]\n\n');
+      res.end();
+    });
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port })));
+}
+
+// Drive POST /chat and drain the UI-message SSE stream to completion.
+async function runChat(baseURL, model, text) {
+  const res = await fetch(`${BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      baseURL,
+      messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text }] }],
+    }),
+  });
+  if (res.status !== 200) return { status: res.status };
+  const reader = res.body.getReader();
+  while (true) {
+    const { done } = await reader.read();
+    if (done) break;
+  }
+  return { status: 200 };
+}
 
 const BASE = 'http://127.0.0.1:7331';
 const MCP = `${BASE}/mcp`;
@@ -150,6 +200,30 @@ try {
   assert(audit.some((e) => e.decision === 'pending'), 'audit.jsonl records intent (pending)');
   assert(audit.some((e) => e.decision === 'allow' && e.approver === 'ui'), 'audit.jsonl records approved outcome');
   assert(audit.some((e) => e.decision === 'deny'), 'audit.jsonl records denied outcome');
+
+  // --- T-CB3: bubble path drives a WRITE tool through the SAME gate ----------
+  const stub = await startStubLLM('add_task', { text: 'from-bubble' });
+  const stubURL = `http://127.0.0.1:${stub.port}/v1`;
+  const chatWrite = await runChat(stubURL, 'stub-model', 'add a task');
+  assert(chatWrite.status === 200, `/chat streamed ok (got ${chatWrite.status})`);
+  assert(board.some((t) => t.text === 'from-bubble'), 'chat tool call landed on the board via the gate');
+
+  // --- T-CB3: destructive from the bubble PAUSES at the gate, then approves --
+  const stub2 = await startStubLLM('delete_all_tasks', {});
+  const stub2URL = `http://127.0.0.1:${stub2.port}/v1`;
+  const chatDestructiveP = runChat(stub2URL, 'stub-model', 'clear everything');
+  const chatPend = await firstPending();
+  assert(chatPend && chatPend.tool === 'delete_all_tasks', 'chat destructive call paused at the gate');
+  await decide(chatPend.id, true);
+  await chatDestructiveP;
+  assert(board.length === 0, 'chat destructive call ran after approval');
+
+  // --- T-CB3: baseURL outside the allowlist is rejected (SSRF guard) ---------
+  const badBase = await runChat('http://evil.example.com/v1', 'stub-model', 'hi');
+  assert(badBase.status === 400, `off-allowlist baseURL -> 400 (got ${badBase.status})`);
+
+  stub.server.close();
+  stub2.server.close();
 } finally {
   await client?.close().catch(() => {});
   await client2?.close().catch(() => {});
