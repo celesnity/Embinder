@@ -222,8 +222,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // T-G1: the browser app fetches its ws token here (Origin-gated to :5173 by the middleware above).
 app.get('/app-token', (req: Request, res: Response) => {
-  const origin = req.headers.origin;
-  if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
   res.json({ token: APP_TOKEN });
 });
 
@@ -231,8 +229,6 @@ app.get('/app-token', (req: Request, res: Response) => {
 // Off by default → the strict out-of-tab posture holds (decide only from /approve).
 app.get('/approver-token', (req: Request, res: Response) => {
   if (process.env.GMC_INLINE_APPROVAL !== '1') return res.status(403).json({ error: 'inline approval disabled' });
-  const origin = req.headers.origin;
-  if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
   res.json({ token: APPROVER_TOKEN });
 });
 
