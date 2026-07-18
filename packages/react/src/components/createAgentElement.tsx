@@ -3,7 +3,7 @@
 // into an agent-aware React component. Every Agent* component is built from this.
 // The component renders the real native element, registers a tool via useEmbinder,
 // and pushes live DOM state through the same context() channel.
-import { createElement, forwardRef, useRef, type ComponentPropsWithoutRef, type Ref } from 'react';
+import { createElement, forwardRef, useCallback, useRef, type ComponentPropsWithoutRef, type Ref } from 'react';
 import type { ZodTypeAny } from 'zod';
 import { useEmbinder } from '../use-embinder.js';
 
@@ -64,11 +64,13 @@ export function createAgentElement<T extends AgentTag, E extends HTMLElement, A>
         : (args: never) => adapter.execute?.(ref.current as E, args as A),
       context: context ?? (() => (ref.current ? adapter.readState(ref.current) : {})),
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const setRef = useCallback(mergeRefs(ref, forwardedRef as Ref<E>), [forwardedRef]);
     return createElement(adapter.tag, {
       ...adapter.fixedProps,
       ...native,
       ...bind,
-      ref: mergeRefs(ref, forwardedRef as Ref<E>),
+      ref: setRef,
     });
   });
   return Component;
