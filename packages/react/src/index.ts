@@ -33,3 +33,5 @@ export { AgentButton } from './components/AgentButton.js';
 export type { AgentButtonProps } from './components/AgentButton.js';
 export { AgentInput } from './components/AgentInput.js';
 export type { AgentInputProps } from './components/AgentInput.js';
+export { AgentSelect } from './components/AgentSelect.js';
+export type { AgentSelectProps } from './components/AgentSelect.js';
