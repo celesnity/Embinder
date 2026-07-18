@@ -27,3 +27,7 @@ export { useDropZone } from './actions/useDropZone.js';
 export type { DropZoneConfig } from './actions/useDropZone.js';
 
 export type { ChatBubbleConfig } from './chat/ChatBubble.js';
+
+// Agent-aware wrapper components (declarative override of native elements).
+export { AgentButton } from './components/AgentButton.js';
+export type { AgentButtonProps } from './components/AgentButton.js';
