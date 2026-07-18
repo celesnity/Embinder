@@ -1,0 +1,128 @@
+{
+  "project": "Embinder",
+  "updated": "2026-07-18",
+  "status_legend": [
+    "not_started",
+    "in_progress",
+    "blocked",
+    "passing"
+  ],
+  "rule": "Only one feature may be in_progress at a time. 'passing' requires verification evidence produced on the current host.",
+  "features": [
+    {
+      "id": "F-WIN1",
+      "priority": 1,
+      "area": "tooling",
+      "title": "Windows portability of e2e/dev process spawns",
+      "user_visible_behavior": "`npm run e2e` and `npm run dev` run on Windows/PowerShell without spawn ENOENT/EINVAL.",
+      "status": "passing",
+      "verification": [
+        "npm run e2e",
+        "expect: 17/17 PASS and 'E2E + GATE GREEN'",
+        "run twice to confirm port 7331 frees between runs"
+      ],
+      "evidence": "2026-07-18 this host (node 24.14.0): npm run e2e -> 17/17 PASS, 'E2E + GATE GREEN', exit 0 on two consecutive runs. Fix: e2e.mjs relay via `process.execPath --import tsx`; dev.mjs shell:true + taskkill /T tree-kill.",
+      "notes": "Root cause: spawn('npx'|'npm') without shell -> ENOENT; .cmd form -> EINVAL on modern Node (CVE-2024-27980)."
+    },
+    {
+      "id": "F-BACKBONE",
+      "priority": 2,
+      "area": "relay",
+      "title": "D1-D3 backbone: MCP round-trip relay <-> app over ws",
+      "user_visible_behavior": "An MCP client sees the app's tools via tools/list and a tools/call executes a real action in the app; two concurrent sessions coexist.",
+      "status": "passing",
+      "verification": [
+        "npm run e2e",
+        "expect PASS: tools/list ok, add_task write lands in board, list_tasks read, two concurrent MCP sessions coexist, internal primer hidden"
+      ],
+      "evidence": "2026-07-18: e2e PASS on tools/list, add_task->board, list_tasks, 2 concurrent sessions, __gmc_ready hidden.",
+      "notes": "Per-session McpServer regresses the LM Studio 'Already connected' crash."
+    },
+    {
+      "id": "F-GATE",
+      "priority": 3,
+      "area": "gate",
+      "title": "D4-D5 policy gate: pause/approve/deny + fidelity + audit",
+      "user_visible_behavior": "Destructive tool call pauses at the gate; approve runs it, deny returns isError with no mutation; hidden unicode in args is flagged and canonical bytes execute; every call is audited.",
+      "status": "passing",
+      "verification": [
+        "npm run e2e",
+        "expect PASS: destructive paused (pending), approved runs + board cleared, denied isError + board unchanged, tampered args flagged, canonical strips hidden unicode, audit records pending/allow/deny"
+      ],
+      "evidence": "2026-07-18: e2e PASS on all gate assertions incl. canonical strips hidden unicode ({id:'t1'}) and audit intent/allow/deny.",
+      "notes": "Risk authoritative in embinder.policy.json; destructiveHint is only an app-side default."
+    },
+    {
+      "id": "F-SEC",
+      "priority": 4,
+      "area": "security",
+      "title": "D6 hardening: token/origin bind + anti self-approve",
+      "user_visible_behavior": "The ws /app is token-gated; a decide call with the wrong approver token is rejected (403); relay binds loopback with Host/Origin allowlist.",
+      "status": "passing",
+      "verification": [
+        "npm run e2e",
+        "expect PASS: 'decide with wrong approver-token -> 403'"
+      ],
+      "evidence": "2026-07-18: e2e PASS on wrong-token 403 and token-authenticated ws /app open.",
+      "notes": "AC-7 rate limit (per-tool/60s) is NOT exercised by e2e on this host - manual only; tracked under F-D8."
+    },
+    {
+      "id": "F-CHAT",
+      "priority": 5,
+      "area": "chat",
+      "title": "In-app chat bubble driven through the relay /chat gate (T-CB)",
+      "user_visible_behavior": "An in-app <ChatBubble> talks to an LLM via relay POST /chat; tool calls run through the same policy gate; destructive calls pause for approval; off-allowlist LLM baseURL is rejected and CORS preflight is honored.",
+      "status": "passing",
+      "verification": [
+        "npm run e2e",
+        "expect PASS: /chat streamed ok (200), chat tool call landed via the gate, chat destructive paused + ran after approval, off-allowlist baseURL -> 400, /approver-token disabled by default -> 403, CORS preflight -> 204 + echoes app origin"
+      ],
+      "evidence": "2026-07-18: e2e (post-Embinder-sync) PASS on all chat-bubble assertions via a deterministic stub LLM.",
+      "notes": "Feature-flagged. Headless only (stub LLM) - real-browser bubble click-through is unverified (see F-D8)."
+    },
+    {
+      "id": "F-D8",
+      "priority": 6,
+      "area": "verification",
+      "title": "Live-browser + spotlight + rate-limit behavioral proof",
+      "user_visible_behavior": "The same round-trip works through the real @embinder/react provider + DOM at :5173, the driver.js spotlight locks the destructive element, and AC-7 rate limit denies over-limit calls.",
+      "status": "not_started",
+      "verification": [
+        "npm run dev",
+        "open http://localhost:5173 and http://127.0.0.1:7331/approve",
+        "point MCP Inspector (npx @modelcontextprotocol/inspector) at http://127.0.0.1:7331/mcp",
+        "call delete_all_tasks -> confirm spotlight locks the element + gate pending, approve at /approve",
+        "exceed policy.rateLimit.perToolPerMin -> expect deny (AC-7)"
+      ],
+      "evidence": "",
+      "notes": "Code for provider/spotlight/rate-limit exists (BUILD_STATUS D1-D7) but is NOT behaviorally verified on this host. Spotlight is enabled via the `viz` prop on <EmbinderProvider> and code-split."
+    },
+    {
+      "id": "F-D9",
+      "priority": 7,
+      "area": "demo",
+      "title": "D8-D9 model bake-off + rehearsal",
+      "user_visible_behavior": "A real MCP client/LLM drives the todo app end-to-end following docs/DEMO.md; the rehearsal playbook passes.",
+      "status": "not_started",
+      "verification": [
+        "Follow docs/DEMO.md acceptance + rehearsal playbook and record outcomes."
+      ],
+      "evidence": "",
+      "notes": "See docs/DEMO.md."
+    },
+    {
+      "id": "F-D10",
+      "priority": 8,
+      "area": "ship",
+      "title": "D10 ship",
+      "user_visible_behavior": "Packages build and are ready to publish; README quick-start works from a clean clone.",
+      "status": "not_started",
+      "verification": [
+        "npm run build --workspaces --if-present",
+        "clean-clone smoke of the README quick start"
+      ],
+      "evidence": "",
+      "notes": ""
+    }
+  ]
+}
