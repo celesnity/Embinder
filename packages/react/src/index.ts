@@ -39,3 +39,5 @@ export { AgentDiv } from './components/AgentDiv.js';
 export type { AgentDivProps } from './components/AgentDiv.js';
 export { AgentCheckbox } from './components/AgentCheckbox.js';
 export type { AgentCheckboxProps } from './components/AgentCheckbox.js';
+export { AgentRadioGroup } from './components/AgentRadioGroup.js';
+export type { AgentRadioGroupProps } from './components/AgentRadioGroup.js';
