@@ -61,7 +61,10 @@ export function createAgentElement<T extends AgentTag, E extends HTMLElement, A>
       input: adapter.input,
       handler: adapter.contextOnly
         ? undefined
-        : (args: never) => adapter.execute?.(ref.current as E, args as A),
+        : (args: never) => {
+            const el = ref.current;
+            if (el) adapter.execute?.(el, args as A);
+          },
       context: context ?? (() => (ref.current ? adapter.readState(ref.current) : {})),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
