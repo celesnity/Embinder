@@ -1,20 +1,13 @@
-// @embinder/react — app-side SDK.
-// Reuse WebMCP ergonomics (useWebMCP) + a relay-backed document.modelContext shim.
+// @embinder/react — app-side SDK. The public surface is the pointer primitive:
+// drop useEmbinder on a component and the agent sees + operates it while it's on screen.
 
 export { EmbinderProvider } from './provider.js';
 export type { EmbinderProviderProps } from './provider.js';
 
-// T-K1: spread onto the element that owns a tool, so the spotlight can anchor to it.
-export function grabAnchor(name: string): { 'data-embinder-tool': string } {
-  return { 'data-embinder-tool': name };
-}
+// The pointer primitive: declare + anchor + lifecycle in one call.
+export { useEmbinder } from './use-embinder.js';
+export type { EmbinderDescriptor, EmbinderBind } from './use-embinder.js';
 export { getModelContext } from './model-context.js';
 export type { ToolDescriptor, ModelContextSurface } from './model-context.js';
-
-// Re-export the WebMCP hook so apps declare tools with one import (T-B2).
-export { useWebMCP } from '@mcp-b/react-webmcp';
-
-// Agent-driven UI action hooks (declare participants; the SDK generates the tools).
-export * from './actions/index.js';
 
 export type { ChatBubbleConfig } from './chat/ChatBubble.js';

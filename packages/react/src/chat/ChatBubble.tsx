@@ -1,28 +1,25 @@
-// T-CB4 — in-app chat bubble. Binds assistant-ui to the relay /chat route (Arch A).
-// Not a product: one more agent through the same gate. Session memory only (refresh clears it).
-//
-// Brand pass: colours + mascot follow the Embinder logo/banner — deep navy panel, electric
-// blue -> cyan accent, and the gear-head robot as the trigger + avatar. Motion is driven by an
-// injected <style> block (keyframes + Radix data-[state] hooks) rather than a motion library,
-// so the SDK stays dependency-free and animation cost is zero until the bubble mounts. Same
-// injectStyle() pattern as spotlight.ts / ghost-cursor.ts.
-import { forwardRef, useMemo } from 'react';
+// The resident agent bubble (default-mounted by EmbinderProvider, D-9).
+// LLM config comes from the relay's /chat-config (env, beside the key) — app code
+// carries none. Unconfigured relay => a "connect a model" hint instead of a composer.
+// Session memory only (refresh clears it).
+import { useEffect, useMemo, useState } from 'react';
 import { AssistantRuntimeProvider, AssistantModalPrimitive, ThreadPrimitive, ComposerPrimitive, MessagePrimitive } from '@assistant-ui/react';
 import { useChatRuntime, AssistantChatTransport } from '@assistant-ui/react-ai-sdk';
 import { ROBOT_HEAD } from './robot-head.js';
 
 export interface ChatBubbleConfig {
-  /** relay chat endpoint. Default http://127.0.0.1:7331/chat */
+  /** relay chat endpoint. Default `${configBase}/chat`. */
   api?: string;
-  /** Optional override for the relay's OpenAI-compatible base URL. Omit to use the relay's MINDER_API_BASE_URL. */
+  /** Override the relay-provided OpenAI-compatible base URL (rarely needed). */
   baseURL?: string;
-  /** Optional model id override. Omit to use the relay's MINDER_MODEL. */
+  /** Override the relay-provided model id (rarely needed). */
   model?: string;
 }
 
-const DEFAULTS = {
-  api: 'http://127.0.0.1:7331/chat',
-};
+interface ChatBubbleProps extends ChatBubbleConfig {
+  /** Relay http base, injected by EmbinderProvider (e.g. http://127.0.0.1:7331). */
+  configBase?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Injected styles. Prefixed emb-cb-* so they never collide with the host app.
@@ -159,9 +156,27 @@ function Message() {
   );
 }
 
-export function ChatBubble(cfg: ChatBubbleConfig = {}) {
-  injectStyle();
-  const api = cfg.api ?? DEFAULTS.api;
+export function ChatBubble(cfg: ChatBubbleProps = {}) {
+  const base = cfg.configBase ?? 'http://127.0.0.1:7331';
+  const api = cfg.api ?? `${base}/chat`;
+
+  // D-9: fetch relay-owned config unless the app explicitly overrode it.
+  const [fetched, setFetched] = useState<{ baseURL: string | null; model: string | null } | null>(null);
+  useEffect(() => {
+    if (cfg.baseURL && cfg.model) return;
+    let cancelled = false;
+    fetch(`${base}/chat-config`)
+      .then((r) => r.json())
+      .then((c) => !cancelled && setFetched(c))
+      .catch(() => !cancelled && setFetched({ baseURL: null, model: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [base, cfg.baseURL, cfg.model]);
+
+  const baseURL = cfg.baseURL ?? fetched?.baseURL ?? undefined;
+  const model = cfg.model ?? fetched?.model ?? undefined;
+  const ready = Boolean(baseURL && model);
 
   const transport = useMemo(() => {
     // By default the relay picks baseURL/model from MINDER_API_BASE_URL / MINDER_MODEL,
@@ -189,14 +204,6 @@ export function ChatBubble(cfg: ChatBubbleConfig = {}) {
           className="emb-cb-panel"
           style={{ position: 'relative', zIndex: 1000 }}
         >
-          <div className="emb-cb-head">
-            <span className="emb-cb-avatar" aria-hidden>
-              <span className="emb-cb-dot" />
-            </span>
-            <span className="emb-cb-title">Embinder Assistant</span>
-            <span className="emb-cb-sub">via gate</span>
-          </div>
-
           <ThreadPrimitive.Root style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <ThreadPrimitive.Viewport className="emb-cb-view">
               <ThreadPrimitive.If empty>
@@ -215,11 +222,24 @@ export function ChatBubble(cfg: ChatBubbleConfig = {}) {
                 </div>
               </ThreadPrimitive.If>
             </ThreadPrimitive.Viewport>
-
-            <ComposerPrimitive.Root className="emb-cb-composer">
-              <ComposerPrimitive.Input placeholder="Ask the agent…" className="emb-cb-input" />
-              <ComposerPrimitive.Send className="emb-cb-send">Send</ComposerPrimitive.Send>
-            </ComposerPrimitive.Root>
+            {ready ? (
+              <ComposerPrimitive.Root style={{ display: 'flex', gap: 6, padding: 8, borderTop: '1px solid #2a2a2e' }}>
+                <ComposerPrimitive.Input
+                  placeholder="Ask the agent…"
+                  style={{ flex: 1, background: '#0e0e10', color: '#eaeaea', border: '1px solid #2a2a2e', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
+                />
+                <ComposerPrimitive.Send
+                  style={{ background: '#6ee7a0', color: '#04140a', border: 'none', borderRadius: 6, padding: '6px 12px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Send
+                </ComposerPrimitive.Send>
+              </ComposerPrimitive.Root>
+            ) : (
+              <div style={{ padding: '10px 12px', borderTop: '1px solid #2a2a2e', fontSize: 12, color: '#9aa0a6' }}>
+                Connect a model: set <code>LLM_BASE_URL</code> and <code>LLM_MODEL</code> in the
+                relay&rsquo;s environment, then restart it.
+              </div>
+            )}
           </ThreadPrimitive.Root>
         </AssistantModalPrimitive.Content>
       </AssistantModalPrimitive.Root>

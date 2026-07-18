@@ -73,10 +73,11 @@ export async function gate(
     audit(ctx.auditPath, { ...base, decision: 'allow', approver, latencyMs: Date.now() - started });
     return argsCanonical;
   } catch (err) {
+    const msg = (err as Error).message;
     audit(ctx.auditPath, {
       ...base,
       decision: 'deny',
-      approver: (err as Error).message.includes('cancelled') ? 'agent-cancel' : 'human',
+      approver: msg.includes('unmounted') ? 'unmounted' : msg.includes('cancelled') ? 'agent-cancel' : 'human',
       latencyMs: Date.now() - started,
     });
     throw err;

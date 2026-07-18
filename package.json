@@ -13,7 +13,9 @@
     "todo": "npm run dev -w todo",
     "e2e": "node scripts/e2e.mjs",
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "e2e:live": "node scripts/integration-live.mjs"
   },
   "engines": {
     "node": ">=20"

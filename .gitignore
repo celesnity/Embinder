@@ -7,4 +7,4 @@ audit.jsonl
 .env
 .env.local
 .DS_Store
-apps/pocketbase/
+.env

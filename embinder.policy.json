@@ -3,44 +3,14 @@
   "unknownTool": "destructive",
   "tools": {
     "__gmc_ready": "read",
-
-    "list_tasks": "read",
-    "get_task": "read",
-    "search_tasks": "read",
-    "list_columns": "read",
-    "list_tags": "read",
-    "board_stats": "read",
-    "get_view": "read",
-    "export_board": "read",
-    "list_pages": "read",
-    "where_am_i": "read",
-
+    "task_board": "read",
+    "archive_list": "read",
     "add_task": "write",
     "edit_task": "write",
-    "toggle_task": "write",
-    "set_priority": "write",
-    "set_due_date": "write",
-    "add_tag": "write",
-    "remove_tag": "write",
-    "assign_task": "write",
-    "move_task": "write",
-    "mark_all_done": "write",
-    "add_column": "write",
-    "rename_column": "write",
-    "set_view": "write",
-    "set_filter": "write",
-    "clear_filter": "write",
-    "undo": "write",
-    "go_to_page": "write",
-    "scroll_to": "write",
-
+    "restore_task": "write",
     "delete_task": "destructive",
     "delete_all_tasks": "destructive",
-    "clear_completed": "destructive",
-    "archive_done": "destructive",
-    "delete_column": "destructive",
-    "bulk_delete": "destructive",
-    "import_board": "destructive"
+    "purge_archive": "destructive"
   },
   "rateLimit": {
     "perToolPerMin": 30

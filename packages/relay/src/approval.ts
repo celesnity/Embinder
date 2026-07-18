@@ -112,6 +112,17 @@ export function requestApproval(req: ApprovalRequest, signal: AbortSignal): Prom
   });
 }
 
+// D-6: a capability left the screen (grace expired) — its pending approvals are moot.
+// Rejecting with an "unmounted" message routes the gate's audit line to approver:'unmounted'.
+export function cancelByTool(tool: string): void {
+  for (const [id, p] of queue) {
+    if (p.tool !== tool) continue;
+    queue.delete(id);
+    emit('remove', p);
+    p.reject(new Error(`approval for "${tool}" cancelled: capability unmounted`));
+  }
+}
+
 // Called by the approval routes / CLI. Returns false if the id is unknown (already decided).
 export function decide(id: string, approve: boolean, approver: string): boolean {
   const p = queue.get(id);
