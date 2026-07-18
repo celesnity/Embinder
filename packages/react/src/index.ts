@@ -37,3 +37,5 @@ export { AgentSelect } from './components/AgentSelect.js';
 export type { AgentSelectProps } from './components/AgentSelect.js';
 export { AgentDiv } from './components/AgentDiv.js';
 export type { AgentDivProps } from './components/AgentDiv.js';
+export { AgentCheckbox } from './components/AgentCheckbox.js';
+export type { AgentCheckboxProps } from './components/AgentCheckbox.js';
