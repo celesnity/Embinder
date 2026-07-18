@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { LayoutGrid, BarChart3, Archive as ArchiveIcon, Settings as SettingsIcon, type LucideIcon } from 'lucide-react';
-import { grabAnchor, useScrollTarget } from '@embinder/react';
+import { grabAnchor, useScrollTarget, useRoute } from '@embinder/react';
 import { reducer, initialState, PAGES, type State, type Page } from './store';
 import { useBoardTools } from './tools';
 import { Toolbar } from './components/Toolbar';
@@ -33,6 +33,16 @@ export default function App() {
 
   useBoardTools(stateRef, dispatch);
   const topTarget = useScrollTarget({ id: 'app-top', label: 'Top of the app' });
+
+  useRoute(
+    PAGES.map((p) => ({
+      id: p,
+      label: p[0].toUpperCase() + p.slice(1),
+      path: p,
+      destructive: p === 'board' ? false : undefined,
+    })),
+    { navigate: (path) => dispatch({ type: 'SET_ROUTE', route: path as Page }) },
+  );
 
   // Two-way sync route <-> URL hash (agent nav updates the address bar; back/forward works).
   useEffect(() => {
