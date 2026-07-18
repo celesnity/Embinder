@@ -6,7 +6,7 @@ import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <GrabMyCursorProvider url="ws://127.0.0.1:7331/app" viz>
+    <GrabMyCursorProvider url="ws://127.0.0.1:7331/app" viz chat={{ baseURL: 'http://127.0.0.1:1234/v1', model: 'qwen2.5-7b-instruct' }}>
       <App />
     </GrabMyCursorProvider>
   </StrictMode>,
