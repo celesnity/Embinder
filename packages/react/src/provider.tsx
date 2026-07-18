@@ -144,7 +144,7 @@ export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz =
     let cancelled = false;
     import('./spotlight.js').then(({ createSpotlight }) => {
       if (cancelled) return;
-      sp = createSpotlight(`${httpBaseFrom(url)}/approve`);
+      sp = createSpotlight(`${httpBaseFrom(url)}/approve`, httpBaseFrom(url));
       singleton!.setPhaseListener((m) => sp!.handle(m));
     });
     return () => {
