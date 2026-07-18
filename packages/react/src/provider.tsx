@@ -1,4 +1,4 @@
-// MinderProvider (T-B1) — installs a document.modelContext shim backed by the relay ws.
+// GrabMyCursorProvider (T-B1) — installs a document.modelContext shim backed by the relay ws.
 // Tools registered via useWebMCP flow straight through this shim into the server-side gate.
 //
 // Deliberate correctness:
@@ -61,14 +61,14 @@ function createShim(url: string, token: string | undefined, native: ModelContext
         const r = await fetch(`${httpBaseFrom(url)}/app-token`);
         t = (await r.json()).token;
       } catch {
-        console.warn('[minder] could not fetch /app-token — is the relay running?');
+        console.warn('[grabmycursor] could not fetch /app-token — is the relay running?');
       }
     }
     const wsUrl = t ? `${url}?token=${encodeURIComponent(t)}` : url;
     ws = new WebSocket(wsUrl);
     ws.addEventListener('open', flush);
     ws.addEventListener('error', () =>
-      console.warn('[minder] relay ws error — is the relay running on', url, '?'),
+      console.warn('[grabmycursor] relay ws error — is the relay running on', url, '?'),
     );
     ws.addEventListener('message', (e) => {
       const m = JSON.parse(e.data);
@@ -122,7 +122,7 @@ function ensureShim(url: string, token?: string): void {
   });
 }
 
-export interface MinderProviderProps {
+export interface GrabMyCursorProviderProps {
   children: ReactNode;
   /** Relay ws endpoint. Default ws://127.0.0.1:7331/app */
   url?: string;
@@ -132,7 +132,7 @@ export interface MinderProviderProps {
   viz?: boolean;
 }
 
-export function MinderProvider({ children, url = DEFAULT_URL, token, viz = false }: MinderProviderProps) {
+export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz = false }: GrabMyCursorProviderProps) {
   ensureShim(url, token);
 
   // T-K: load the spotlight only when the flag is on (zero driver.js cost when off).

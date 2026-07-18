@@ -1,5 +1,5 @@
 // SpotlightController (T-K3/K4/K5) — drives driver.js from relay phase events.
-// Dynamically imported by MinderProvider ONLY when viz is on, so driver.js + CSS cost nothing
+// Dynamically imported by GrabMyCursorProvider ONLY when viz is on, so driver.js + CSS cost nothing
 // when the flag is off. AC-8. Never opens an approve/deny surface (AC-4) — display only.
 
 import { driver, type Driver, type Config } from 'driver.js';
@@ -19,18 +19,18 @@ export interface Spotlight {
   destroy(): void;
 }
 
-const STYLE_ID = 'minder-spotlight-style';
+const STYLE_ID = 'gmc-spotlight-style';
 const CSS = `
-.minder-popover{--dc:#6ee7a0}
-.minder-popover .driver-popover-title{font-size:15px}
-.minder-popover .driver-popover-description code{background:#0e0e10;color:#9fe6b6;padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
-.minder-popover.minder-pending{box-shadow:0 0 0 2px #e5b53b, 0 0 24px rgba(229,181,59,.5);animation:minder-pulse 1.1s ease-in-out infinite}
-.minder-popover.minder-pending .driver-popover-title{color:#e5b53b}
-.minder-popover.minder-denied{box-shadow:0 0 0 2px #ff5b5b}
-.minder-popover.minder-denied .driver-popover-title{color:#ff5b5b}
-.minder-popover.minder-done{box-shadow:0 0 0 2px #6ee7a0}
-.minder-approve-link{display:inline-block;margin-top:8px;color:#8ab4ff;font-weight:600;text-decoration:none}
-@keyframes minder-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+.gmc-popover{--dc:#6ee7a0}
+.gmc-popover .driver-popover-title{font-size:15px}
+.gmc-popover .driver-popover-description code{background:#0e0e10;color:#9fe6b6;padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
+.gmc-popover.gmc-pending{box-shadow:0 0 0 2px #e5b53b, 0 0 24px rgba(229,181,59,.5);animation:gmc-pulse 1.1s ease-in-out infinite}
+.gmc-popover.gmc-pending .driver-popover-title{color:#e5b53b}
+.gmc-popover.gmc-denied{box-shadow:0 0 0 2px #ff5b5b}
+.gmc-popover.gmc-denied .driver-popover-title{color:#ff5b5b}
+.gmc-popover.gmc-done{box-shadow:0 0 0 2px #6ee7a0}
+.gmc-approve-link{display:inline-block;margin-top:8px;color:#8ab4ff;font-weight:600;text-decoration:none}
+@keyframes gmc-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
 `;
 
 function injectStyle() {
@@ -46,7 +46,7 @@ function esc(s: string): string {
 }
 
 function resolveEl(name: string): Element | undefined {
-  const sel = `[data-minder-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
+  const sel = `[data-grabmycursor-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
   return document.querySelector(sel) ?? undefined;
 }
 
@@ -63,7 +63,7 @@ export function createSpotlight(approveUrl: string): Spotlight {
     overlayColor: 'rgba(2,6,23,0.6)',
     stagePadding: 6,
     stageRadius: 8,
-    popoverClass: 'minder-popover',
+    popoverClass: 'gmc-popover',
     disableActiveInteraction: false,
   };
   const d: Driver = driver(base);
@@ -94,7 +94,7 @@ export function createSpotlight(approveUrl: string): Spotlight {
     d.setConfig({
       ...base,
       disableActiveInteraction: !!opts.lock,
-      popoverClass: opts.klass ? `minder-popover ${opts.klass}` : 'minder-popover',
+      popoverClass: opts.klass ? `gmc-popover ${opts.klass}` : 'gmc-popover',
     });
     d.highlight({
       element: resolveEl(name),
@@ -124,8 +124,8 @@ export function createSpotlight(approveUrl: string): Spotlight {
             show(
               active.name,
               `⏳ Waiting for owner approval…<br>${fidelity(active.preview)}` +
-                `<a class="minder-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`,
-              { lock: true, klass: 'minder-pending' },
+                `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`,
+              { lock: true, klass: 'gmc-pending' },
             );
             say(`${active.name} needs owner approval — waiting`);
           } else {
@@ -136,24 +136,24 @@ export function createSpotlight(approveUrl: string): Spotlight {
         case 'decided':
           if (!active || m.id !== active.id) break;
           if (m.decision === 'denied') {
-            show(active.name, `⛔ Denied by policy gate.`, { klass: 'minder-denied' });
+            show(active.name, `⛔ Denied by policy gate.`, { klass: 'gmc-denied' });
             say(`${active.name} denied by policy gate`);
             scheduleClear(1100);
             active = undefined;
           } else {
-            show(active.name, `✅ Approved — running…`, { klass: 'minder-done' });
+            show(active.name, `✅ Approved — running…`, { klass: 'gmc-done' });
             say(`${active.name} approved, running`);
           }
           break;
 
         case 'call':
           if (!active || m.id !== active.id) break;
-          show(active.name, `⚙️ Running…`, { klass: 'minder-done' });
+          show(active.name, `⚙️ Running…`, { klass: 'gmc-done' });
           break;
 
         case 'done':
           if (!active || m.id !== active.id) break;
-          show(active.name, `✅ Done.`, { klass: 'minder-done' });
+          show(active.name, `✅ Done.`, { klass: 'gmc-done' });
           say(`${active.name} done`);
           scheduleClear(700);
           active = undefined;

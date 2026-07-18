@@ -1,4 +1,4 @@
-# Minder — Demo, Acceptance & Rehearsal Playbook (D8–D10)
+# GrabMyCursor — Demo, Acceptance & Rehearsal Playbook (D8–D10)
 
 The code for D4–D7 is done and gate-verified headlessly (`npm run e2e`, 17 assertions).
 This playbook is the human-run part: model bake-off, acceptance walk-through, and rehearsal.
@@ -17,7 +17,7 @@ Headless proof any time: `npm run e2e` → `✅ E2E + GATE GREEN`.
 
 | AC | Claim | How to show | Auto-covered by `npm run e2e`? |
 |----|-------|-------------|-------------------------------|
-| AC-1 | Agent sees the tools | Inspector/LM Studio lists 5 tools (no `__minder_ready`) | ✅ |
+| AC-1 | Agent sees the tools | Inspector/LM Studio lists 5 tools (no `__gmc_ready`) | ✅ |
 | AC-2 | Tool call round-trips | "add buy milk" → task appears at :5173, agent gets `{ok:true}` | ✅ |
 | AC-3 | Gate pause/deny/approve | "delete all tasks" → pauses; Approve runs, Deny blocks | ✅ |
 | AC-4 | No self-approve | `POST /api/decide` w/o approver-token → 403; app tab can't approve | ✅ |
@@ -25,7 +25,7 @@ Headless proof any time: `npm run e2e` → `✅ E2E + GATE GREEN`.
 | AC-6 | Audit trail | `audit.jsonl` gains intent+outcome lines per gated call | ✅ |
 | AC-7 | Rate limit | Spam a tool > `perToolPerMin` → denied, logged | manual (see below) |
 
-AC-7 manual check: set `rateLimit.perToolPerMin` low in `minder.policy.json`, call a tool in a
+AC-7 manual check: set `rateLimit.perToolPerMin` low in `grabmycursor.policy.json`, call a tool in a
 loop from Inspector; the N+1th returns "Rate limit exceeded" and audit shows `approver:"rate-limit"`.
 
 ## 2. Model bake-off (D8)
@@ -58,6 +58,6 @@ Record a backup video of this exact run.
 
 ## 4. Talking point (positioning)
 
-Minder is **governance ON WebMCP**, not an anti-injection oracle. The differentiator vs CopilotKit
+GrabMyCursor is **governance ON WebMCP**, not an anti-injection oracle. The differentiator vs CopilotKit
 HITL: the human gate lives **server-side, off the agent-driven tab** — the agent cannot reach the
 approve button, and the approver sees the exact canonical bytes that will execute.

@@ -131,7 +131,7 @@ export function enableCliApprovals(): void {
     if (e.type !== 'add') return;
     const flag = e.pending.tampered ? ' ⚠️  TAMPERED (hidden unicode stripped)' : '';
     console.log(
-      `\n[minder] APPROVE "${e.pending.tool}"?  args=${JSON.stringify(e.pending.canonical)}${flag}` +
+      `\n[grabmycursor] APPROVE "${e.pending.tool}"?  args=${JSON.stringify(e.pending.canonical)}${flag}` +
         `\n         [a]pprove / [d]eny  (or use http://127.0.0.1:7331/approve)`,
     );
   });

@@ -1,4 +1,4 @@
-# Minder / Warden — Gate + Approval + Hardening Design (D4–D7)
+# GrabMyCursor / Warden — Gate + Approval + Hardening Design (D4–D7)
 
 _Design date: 2026-07-18 · Companion to `MINDER_BUILD_GUIDE.md` and `BUILD_STATUS.md`._
 

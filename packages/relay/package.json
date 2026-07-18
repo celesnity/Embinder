@@ -1,10 +1,10 @@
 {
-  "name": "@minder/relay",
+  "name": "@grabmycursor/relay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "minder-relay": "./dist/server.js"
+    "grabmycursor-relay": "./dist/server.js"
   },
   "main": "./dist/server.js",
   "scripts": {

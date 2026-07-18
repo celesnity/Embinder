@@ -1,12 +1,12 @@
-// @minder/react — app-side SDK.
+// @grabmycursor/react — app-side SDK.
 // Reuse WebMCP ergonomics (useWebMCP) + a relay-backed document.modelContext shim.
 
-export { MinderProvider } from './provider.js';
-export type { MinderProviderProps } from './provider.js';
+export { GrabMyCursorProvider } from './provider.js';
+export type { GrabMyCursorProviderProps } from './provider.js';
 
 // T-K1: spread onto the element that owns a tool, so the spotlight can anchor to it.
-export function minderAnchor(name: string): { 'data-minder-tool': string } {
-  return { 'data-minder-tool': name };
+export function grabAnchor(name: string): { 'data-grabmycursor-tool': string } {
+  return { 'data-grabmycursor-tool': name };
 }
 export { getModelContext } from './model-context.js';
 export type { ToolDescriptor, ModelContextSurface } from './model-context.js';

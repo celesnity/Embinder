@@ -35,15 +35,15 @@ _Last updated: 2026-07-18_
 minderSDK/
 ├─ package.json            # npm workspaces: packages/*, apps/*
 ├─ tsconfig.base.json
-├─ minder.policy.json      # authoritative risk: 5 tools; delete_task + delete_all_tasks = destructive
+├─ grabmycursor.policy.json      # authoritative risk: 5 tools; delete_task + delete_all_tasks = destructive
 ├─ README.md
 ├─ scripts/
 │  └─ e2e.mjs              # one-command E2E round-trip test (npm run e2e)
 ├─ apps/todo/              # Vite React-TS reference app
 │  └─ src/{store.ts, App.tsx, main.tsx}
-├─ packages/react/         # @minder/react
+├─ packages/react/         # @grabmycursor/react
 │  └─ src/{index.ts, provider.tsx, model-context.ts}
-└─ packages/relay/         # @minder/relay
+└─ packages/relay/         # @grabmycursor/relay
    └─ src/{server, gate, approval, audit, security, policy}.ts
 ```
 
@@ -56,9 +56,9 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | Task | Status | Evidence / note |
 |---|---|---|
 | **T-A1** Vite React Todo + 5 actions | ✅ | `apps/todo/src/store.ts` (useReducer: ADD/TOGGLE/EDIT/DELETE/CLEAR) + `App.tsx` |
-| **T-B1** MinderProvider = `document.modelContext` shim over ws | ✅ | `packages/react/src/provider.tsx` |
+| **T-B1** GrabMyCursorProvider = `document.modelContext` shim over ws | ✅ | `packages/react/src/provider.tsx` |
 | **T-B2** `useWebMCP` tool declarations from component | ✅ | `App.tsx` — 5 tools; `destructiveHint` on delete_task/delete_all_tasks |
-| **T-C1** McpServer + dynamic register/unregister | ✅ | `server.ts` `registerGatedTool`, `__minder_ready` primer before `connect()` |
+| **T-C1** McpServer + dynamic register/unregister | ✅ | `server.ts` `registerGatedTool`, `__gmc_ready` primer before `connect()` |
 | **T-C2** Bridge tools/call → app → result | ✅ | `server.ts` `forwardToBrowser` (30s timeout, pending map) |
 | **T-C3** Streamable HTTP (+ stdio) transport | ✅ | POST/GET/DELETE `/mcp`, `--stdio` — **per-session McpServer** (multi-client safe; fixed LM Studio "Already connected" crash) |
 | **T-D1** Gate injection point (wrap handler) | ✅ | `gate()` in handler, after validation, returns canonical args to forward |
@@ -72,20 +72,20 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | **T-H1** WebMCP-native feature-detect path | ✅ | provider captures native surface, mirrors registrations (degrades to relay) |
 | **T-I1** LM Studio wiring | ✅ | `mcp.json` committed; setup in `docs/DEMO.md` |
 | **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`) |
-| **T-K0–K5** Spotlight + gate viz (`MINDER_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
+| **T-K0–K5** Spotlight + gate viz (`GRABMYCURSOR_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
 
 ---
 
 ## 4. Verified working
 
 - `npm run typecheck` → **exit 0** across all workspaces.
-- `__minder_ready` primer registered before `connect()` (avoids the capabilities-after-connect throw).
+- `__gmc_ready` primer registered before `connect()` (avoids the capabilities-after-connect throw).
 - **D3 milestone PROVEN — full tool-call round-trip, not just `initialize`.** `npm run e2e`
   spawns the relay, plays a fake browser app (ws `/app`) + a real MCP client (streamable HTTP),
   and asserts:
 
   ```
-  PASS  tools/list includes add_task (got: __minder_ready, add_task)
+  PASS  tools/list includes add_task (got: __gmc_ready, add_task)
   PASS  agent received {ok:true} (got: {"ok":true,"added":"milk"})
   PASS  task "milk" landed in the app board (board: ["milk"])
   PASS  2nd session lists add_task too
@@ -98,7 +98,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
   (iv) two concurrent MCP sessions coexist (regresses the LM Studio "Already connected" crash).
   Regression-guarded going forward via `scripts/e2e.mjs`.
 - ⚠️ **Still to confirm manually:** the *live browser* path (`:5173` + a real MCP client such as
-  Inspector), i.e. the same round-trip with the actual `@minder/react` provider and DOM. The
+  Inspector), i.e. the same round-trip with the actual `@grabmycursor/react` provider and DOM. The
   headless test exercises the identical wire protocol, so this is a smoke check, not a risk.
 
 ```

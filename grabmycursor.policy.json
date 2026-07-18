@@ -2,7 +2,7 @@
   "$comment": "Authoritative per-tool risk policy. Wins over first-party destructiveHint. Unknown tools deny-by-default.",
   "unknownTool": "destructive",
   "tools": {
-    "__minder_ready": "read",
+    "__gmc_ready": "read",
     "list_tasks": "read",
     "add_task": "write",
     "toggle_task": "write",

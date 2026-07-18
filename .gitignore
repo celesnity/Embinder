@@ -3,5 +3,5 @@ node_modules/
 dist/
 *.log
 audit.jsonl
-.minder/
+.grabmycursor/
 .DS_Store

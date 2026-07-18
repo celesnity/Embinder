@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <code>@minder/react</code> (app side) · <code>@minder/relay</code> (MCP server + gate)
+  <code>@grabmycursor/react</code> (app side) · <code>@grabmycursor/relay</code> (MCP server + gate)
 </p>
 
 ---
@@ -34,7 +34,7 @@ The difference from client-side human-in-the-loop (e.g. CopilotKit): the approve
 ## Architecture
 
 ```
- Agent ──http /mcp──▶  @minder/relay  ──ws /app──▶  Your app (@minder/react)
+ Agent ──http /mcp──▶  @grabmycursor/relay  ──ws /app──▶  Your app (@grabmycursor/react)
                             │  ▲                          │
      phase events ──────────┘  │                          │  useWebMCP → tools
    (intent·gate·decided)       │                          ▼
@@ -51,8 +51,8 @@ and the human approves at `/approve`.
 
 | Package | Role |
 |---|---|
-| `@minder/react` | App SDK. `MinderProvider` (installs a `document.modelContext` shim over ws), re-exported `useWebMCP`, `minderAnchor`, and the driver.js action **spotlight** (feature-flagged, code-split). |
-| `@minder/relay` | MCP server + ws hub + **policy gate**: per-session `McpServer`, approval surface, audit log, rate limit, token/origin hardening. |
+| `@grabmycursor/react` | App SDK. `GrabMyCursorProvider` (installs a `document.modelContext` shim over ws), re-exported `useWebMCP`, `grabAnchor`, and the driver.js action **spotlight** (feature-flagged, code-split). |
+| `@grabmycursor/relay` | MCP server + ws hub + **policy gate**: per-session `McpServer`, approval surface, audit log, rate limit, token/origin hardening. |
 | `apps/todo` | Reference app — a todo board exposing 5 tools, wired end-to-end. |
 
 ## Quick start
@@ -74,7 +74,7 @@ npm run e2e        # ✅ E2E + GATE GREEN  (17 assertions, AC-1..AC-6)
 ## Declaring an action (app side)
 
 ```tsx
-import { useWebMCP, minderAnchor } from '@minder/react';
+import { useWebMCP, grabAnchor } from '@grabmycursor/react';
 
 useWebMCP({
   name: 'delete_all_tasks',
@@ -84,10 +84,10 @@ useWebMCP({
   handler: async () => { dispatch({ type: 'CLEAR' }); return { ok: true }; },
 });
 
-<button {...minderAnchor('delete_all_tasks')}>Clear all</button>  // spotlight anchors here
+<button {...grabAnchor('delete_all_tasks')}>Clear all</button>  // spotlight anchors here
 ```
 
-Risk is authoritative in `minder.policy.json` (`read` / `write` pass through, `destructive` pauses,
+Risk is authoritative in `grabmycursor.policy.json` (`read` / `write` pass through, `destructive` pauses,
 unknown tools deny-by-default). `destructiveHint` from the app is only a default.
 
 ## The gate, seen

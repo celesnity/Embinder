@@ -32,7 +32,7 @@ await new Promise((resolve, reject) => {
   });
 });
 
-const { appToken, approverToken } = JSON.parse(readFileSync('.minder/session.json', 'utf8'));
+const { appToken, approverToken } = JSON.parse(readFileSync('.grabmycursor/session.json', 'utf8'));
 
 // Read the first pending approval from the SSE stream.
 async function firstPending() {
@@ -96,7 +96,7 @@ try {
   await client.connect(new StreamableHTTPClientTransport(new URL(MCP)));
   const tools = (await client.listTools()).tools.map((t) => t.name);
   assert(tools.includes('add_task') && tools.includes('delete_all_tasks'), `tools/list ok (got: ${tools.join(', ')})`);
-  assert(!tools.includes('__minder_ready'), 'internal primer hidden from tools/list');
+  assert(!tools.includes('__gmc_ready'), 'internal primer hidden from tools/list');
 
   // write passes the gate straight through
   const add = JSON.parse((await client.callTool({ name: 'add_task', arguments: { text: 'milk' } })).content[0].text);

@@ -1,4 +1,4 @@
-// @minder/relay — MCP server + ws app-hub + policy gate (single port 127.0.0.1:7331).
+// @grabmycursor/relay — MCP server + ws app-hub + policy gate (single port 127.0.0.1:7331).
 // Backbone: T-C1 (dynamic tool registration), T-C2 (call bridge), T-C3 (streamable HTTP + stdio).
 // Gate (Module D) is wired but destructive calls block until the approval surface lands (T-E1).
 //
@@ -34,7 +34,7 @@ process.stderr.on('error', () => {});
 const PORT = 7331;
 const HOST = '127.0.0.1';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const POLICY_PATH = resolve(ROOT, 'minder.policy.json');
+const POLICY_PATH = resolve(ROOT, 'grabmycursor.policy.json');
 const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);
 
@@ -43,9 +43,9 @@ const APP_TOKEN = mintToken(); // ws /app (browser app)
 const APPROVER_TOKEN = mintToken(); // /api/decide (approval page)
 // Written for local tooling/tests (gitignored). Browser fetches its token via GET /app-token.
 try {
-  mkdirSync(resolve(ROOT, '.minder'), { recursive: true });
+  mkdirSync(resolve(ROOT, '.grabmycursor'), { recursive: true });
   writeFileSync(
-    resolve(ROOT, '.minder/session.json'),
+    resolve(ROOT, '.grabmycursor/session.json'),
     JSON.stringify({ port: PORT, appToken: APP_TOKEN, approverToken: APPROVER_TOKEN }, null, 2),
   );
 } catch {
@@ -124,7 +124,7 @@ function registerGatedTool(
         void extra
           .sendNotification({
             method: 'notifications/message',
-            params: { level: 'debug', logger: 'minder', data: `awaiting approval for ${name}` },
+            params: { level: 'debug', logger: 'grabmycursor', data: `awaiting approval for ${name}` },
           })
           .catch(() => {}),
     };
@@ -142,14 +142,14 @@ function registerGatedTool(
   tools.set(name, tool);
 }
 
-// Build a new server pre-loaded with __minder_ready + all currently-registered tools.
+// Build a new server pre-loaded with __gmc_ready + all currently-registered tools.
 function buildSessionServer(): { server: McpServer; tools: Session['tools'] } {
-  const server = new McpServer({ name: 'minder-relay', version: '0.1.0' });
+  const server = new McpServer({ name: 'grabmycursor-relay', version: '0.1.0' });
   const tools: Session['tools'] = new Map();
   // Prime one tool BEFORE connect (capabilities-after-connect gotcha, index.ts:208),
   // then disable it so it never shows in tools/list — it's an internal primer, not an
   // agent-facing tool (weak models otherwise pick it by mistake). Capability stays declared.
-  const primer = server.registerTool('__minder_ready', { description: 'internal' }, async () => ({
+  const primer = server.registerTool('__gmc_ready', { description: 'internal' }, async () => ({
     content: [{ type: 'text', text: 'ready' }],
   }));
   primer.disable();
@@ -198,9 +198,9 @@ mountApprovalRoutes(app, APPROVER_TOKEN);
 enableCliApprovals();
 
 const httpServer = app.listen(PORT, HOST, () => {
-  console.log(`[minder] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
-  console.log(`[minder] approvals: http://127.0.0.1:${PORT}/approve`);
-  console.log(`[minder] audit log: ${AUDIT_PATH}`);
+  console.log(`[grabmycursor] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
+  console.log(`[grabmycursor] approvals: http://127.0.0.1:${PORT}/approve`);
+  console.log(`[grabmycursor] audit log: ${AUDIT_PATH}`);
 });
 
 const wss = new WebSocketServer({ server: httpServer, path: '/app' });
@@ -209,12 +209,12 @@ wss.on('connection', (ws, req) => {
   const url = new URL(req.url ?? '/app', 'http://localhost');
   const token = url.searchParams.get('token') ?? undefined;
   if (!originAllowed(req.headers.origin) || !tokenMatches(token, APP_TOKEN)) {
-    console.warn('[minder] app ws rejected (bad origin or token)');
+    console.warn('[grabmycursor] app ws rejected (bad origin or token)');
     ws.close(1008, 'unauthorized');
     return;
   }
   appSocket = ws;
-  console.log('[minder] app connected');
+  console.log('[grabmycursor] app connected');
   ws.on('message', (buf) => {
     const m = JSON.parse(String(buf));
     switch (m.type) {
@@ -229,7 +229,7 @@ wss.on('connection', (ws, req) => {
         };
         toolRegistry.set(m.tool.name, def);
         for (const s of sessions.values()) registerGatedTool(s.server, s.tools, m.tool.name, def);
-        console.log(`[minder] tool registered: ${m.tool.name}`);
+        console.log(`[grabmycursor] tool registered: ${m.tool.name}`);
         break;
       }
       case 'unregister':
@@ -238,7 +238,7 @@ wss.on('connection', (ws, req) => {
           s.tools.get(m.name)?.remove();
           s.tools.delete(m.name);
         }
-        console.log(`[minder] tool unregistered: ${m.name}`);
+        console.log(`[grabmycursor] tool unregistered: ${m.name}`);
         break;
       case 'result':
         pending.get(m.id)?.(m.error ? { error: m.error } : m.result);
@@ -248,12 +248,12 @@ wss.on('connection', (ws, req) => {
   });
   ws.on('close', () => {
     if (appSocket === ws) appSocket = undefined;
-    console.log('[minder] app disconnected');
+    console.log('[grabmycursor] app disconnected');
   });
   // A dying browser tab must never crash the relay (EPIPE on a half-closed socket).
   ws.on('error', (err) => {
     if (appSocket === ws) appSocket = undefined;
-    console.warn(`[minder] app socket error: ${err.message}`);
+    console.warn(`[grabmycursor] app socket error: ${err.message}`);
   });
 });
 
@@ -269,14 +269,14 @@ app.post('/mcp', async (req: Request, res: Response) => {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (id) => {
         sessions.set(id, { server, transport: transport!, tools });
-        console.log(`[minder] mcp session ${id.slice(0, 8)} connected`);
+        console.log(`[grabmycursor] mcp session ${id.slice(0, 8)} connected`);
       },
     });
     transport.onclose = () => {
       const s = transport!.sessionId;
       if (s) {
         sessions.delete(s);
-        console.log(`[minder] mcp session ${s.slice(0, 8)} closed`);
+        console.log(`[grabmycursor] mcp session ${s.slice(0, 8)} closed`);
       }
     };
     await server.connect(transport);
@@ -303,5 +303,5 @@ app.delete('/mcp', sessionRoute);
 if (process.argv.includes('--stdio')) {
   const { server: stdioServer } = buildSessionServer();
   stdioServer.connect(new StdioServerTransport());
-  console.log('[minder] stdio transport connected');
+  console.log('[grabmycursor] stdio transport connected');
 }

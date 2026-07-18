@@ -1,4 +1,4 @@
-// Policy engine — reads minder.policy.json (authoritative) and resolves per-tool risk.
+// Policy engine — reads grabmycursor.policy.json (authoritative) and resolves per-tool risk.
 // T-D1: policy.riskOf(name, destructiveHintDefault) -> "read" | "write" | "destructive".
 // Rule: policy.json wins; unknown tools are deny-by-default ("destructive").
 

@@ -34,5 +34,5 @@ export function reducer(state: Task[], action: Action): Task[] {
 }
 
 export const initialTasks: Task[] = [
-  { id: 't_seed_0', text: 'Try the Minder gate demo', done: false },
+  { id: 't_seed_0', text: 'Try the GrabMyCursor gate demo', done: false },
 ];
