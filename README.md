@@ -26,6 +26,7 @@ actions as tools; the agent sees them, calls them, and GrabMyCursor does three t
 3. **Lets the user see — and gate — what happened** — a live **spotlight** highlights the exact
    element being driven, and destructive actions **pause at a human approval gate that lives on the
    server, off the tab the agent controls.**
+- **Optional in-app chat bubble (feature-flagged)** — one more agent through the same gate.
 
 The difference from client-side human-in-the-loop (e.g. CopilotKit): the approve/deny surface is
 **server-side and out-of-band**. The agent cannot reach the button, and the approver sees the exact
