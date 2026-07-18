@@ -224,6 +224,18 @@ try {
 
   stub.server.close();
   stub2.server.close();
+
+  // --- T-CB / T-E: /approver-token is off unless explicitly enabled ---------
+  const tokOff = await fetch(`${BASE}/approver-token`);
+  assert(tokOff.status === 403, `/approver-token disabled by default -> 403 (got ${tokOff.status})`);
+
+  // --- CORS preflight for the browser bubble --------------------------------
+  const pre = await fetch(`${BASE}/chat`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'POST' },
+  });
+  assert(pre.status === 204, `CORS preflight -> 204 (got ${pre.status})`);
+  assert(pre.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'preflight echoes the app origin');
 } finally {
   await client?.close().catch(() => {});
   await client2?.close().catch(() => {});

@@ -206,11 +206,34 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// CORS for the app tab (:5173) so the browser bubble can POST /chat and /api/decide.
+// Origin is already allowlisted by the middleware above; echo it and answer preflights.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && originAllowed(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, x-approver-token');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // T-G1: the browser app fetches its ws token here (Origin-gated to :5173 by the middleware above).
 app.get('/app-token', (req: Request, res: Response) => {
   const origin = req.headers.origin;
   if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
   res.json({ token: APP_TOKEN });
+});
+
+// Opt-in (GMC_INLINE_APPROVAL=1): lets the app tab drive the driver.js Approve/Deny buttons.
+// Off by default → the strict out-of-tab posture holds (decide only from /approve).
+app.get('/approver-token', (req: Request, res: Response) => {
+  if (process.env.GMC_INLINE_APPROVAL !== '1') return res.status(403).json({ error: 'inline approval disabled' });
+  const origin = req.headers.origin;
+  if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
+  res.json({ token: APPROVER_TOKEN });
 });
 
 // T-E1/E2: approval surface (out-of-tab).
