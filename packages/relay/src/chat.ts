@@ -76,8 +76,12 @@ export function normalizeBaseURL(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
     const u = new URL(url);
-    if (u.pathname === '' || u.pathname === '/') return `${u.origin}/v1`;
-    return url;
+    // The OpenAI-compatible client appends `/chat/completions` itself, so baseURL
+    // must be the API ROOT. Tolerate a full completions URL or trailing slash in
+    // config so `.../v1/chat/completions` doesn't become `.../v1/chat/completions/chat/completions`.
+    let path = u.pathname.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    if (path === '') path = '/v1';
+    return `${u.origin}${path}`;
   } catch {
     return url;
   }
@@ -171,6 +175,11 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
       messages: await convertToModelMessages(messages as never),
       tools,
       stopWhen: stepCountIs(6),
+      // Surface the real upstream failure server-side; the browser only ever sees
+      // the AI SDK's generic "An error occurred." in the stream.
+      onError: ({ error }) => {
+        console.error('[embinder] chat upstream error:', error);
+      },
     });
 
     pipeUIMessageStreamToResponse({

@@ -20,21 +20,37 @@ export interface Spotlight {
 }
 
 const STYLE_ID = 'gmc-spotlight-style';
+// Clean, on-brand popover (navy panel + electric-blue accent, matching the chat bubble).
+// No raw JSON, no snake_case tool ids, no emoji spinners — just a humanized action + state.
 const CSS = `
-.gmc-popover{--dc:#6ee7a0}
-.gmc-popover .driver-popover-title{font-size:15px}
-.gmc-popover .driver-popover-description code{background:#0e0e10;color:#9fe6b6;padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
-.gmc-popover.gmc-pending{box-shadow:0 0 0 2px #e5b53b, 0 0 24px rgba(229,181,59,.5);animation:gmc-pulse 1.1s ease-in-out infinite}
-.gmc-popover.gmc-pending .driver-popover-title{color:#e5b53b}
-.gmc-popover.gmc-denied{box-shadow:0 0 0 2px #ff5b5b}
-.gmc-popover.gmc-denied .driver-popover-title{color:#ff5b5b}
-.gmc-popover.gmc-done{box-shadow:0 0 0 2px #6ee7a0}
-.gmc-approve-link{display:inline-block;margin-top:8px;color:#8ab4ff;font-weight:600;text-decoration:none}
-@keyframes gmc-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
-.gmc-popover .gmc-approve-row{display:flex;gap:8px;margin-top:10px}
-.gmc-popover .gmc-decide{flex:1;font-size:13px;padding:7px 8px;border-radius:6px;cursor:pointer;border:1px solid #444;font-weight:600}
-.gmc-popover .gmc-approve{background:#183d1e;color:#7ee29a;border-color:#2a5}
-.gmc-popover .gmc-deny{background:#3d1818;color:#ff8a8a;border-color:#a33}
+.gmc-popover{background:linear-gradient(180deg,#101a2e,#0a1120);color:#e8eefb;
+  border:1px solid rgba(90,150,255,.18);border-radius:14px;padding:14px 16px;max-width:280px;
+  box-shadow:0 18px 44px -12px rgba(0,0,0,.7),0 0 0 1px rgba(90,150,255,.1);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:box-shadow .25s ease,border-color .25s ease}
+.gmc-popover .driver-popover-arrow{border-color:#0a1120!important}
+.gmc-popover .driver-popover-title{font-size:14px;font-weight:700;letter-spacing:.2px;margin:0 0 5px;color:#eaf4ff;line-height:1.35}
+.gmc-popover .driver-popover-description{font-size:12.5px;line-height:1.5;color:#9fb2d6;margin:0}
+.gmc-popover .gmc-kicker{display:block;font-size:9.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#5b76a6;margin-bottom:4px}
+
+.gmc-popover.gmc-pending{border-color:rgba(240,180,41,.45);box-shadow:0 0 0 1px rgba(240,180,41,.45),0 18px 44px -12px rgba(0,0,0,.7);
+  animation:gmc-pulse 1.7s ease-in-out infinite}
+.gmc-popover.gmc-pending .driver-popover-title{color:#f7c948}
+.gmc-popover.gmc-denied{border-color:rgba(255,107,107,.5);box-shadow:0 0 0 1px rgba(255,107,107,.4),0 18px 44px -12px rgba(0,0,0,.7)}
+.gmc-popover.gmc-denied .driver-popover-title{color:#ff8a8a}
+.gmc-popover.gmc-done{border-color:rgba(77,214,255,.45);box-shadow:0 0 0 1px rgba(77,214,255,.4),0 18px 44px -12px rgba(0,0,0,.7)}
+.gmc-popover.gmc-done .driver-popover-title{color:#7fe3ff}
+
+.gmc-approve-link{display:inline-block;margin-top:10px;color:#8fd3ff;font-weight:600;text-decoration:none;font-size:12.5px}
+.gmc-approve-link:hover{color:#bfe6ff}
+.gmc-popover .gmc-approve-row{display:flex;gap:8px;margin-top:12px}
+.gmc-popover .gmc-decide{flex:1;font-size:12.5px;padding:8px 10px;border-radius:9px;cursor:pointer;border:1px solid transparent;font-weight:700;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),filter .15s ease}
+.gmc-popover .gmc-decide:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.gmc-popover .gmc-decide:active{transform:translateY(0) scale(.98)}
+.gmc-popover .gmc-approve{background:linear-gradient(145deg,#4dd6ff,#3b82f6);color:#04122c;box-shadow:0 4px 12px rgba(59,130,246,.4)}
+.gmc-popover .gmc-deny{background:transparent;color:#ff9a9a;border-color:rgba(255,107,107,.35)}
+@keyframes gmc-pulse{0%,100%{box-shadow:0 0 0 1px rgba(240,180,41,.45),0 18px 44px -12px rgba(0,0,0,.7)}
+  50%{box-shadow:0 0 0 3px rgba(240,180,41,.22),0 18px 44px -12px rgba(0,0,0,.7)}}
 `;
 
 function injectStyle() {
@@ -54,8 +70,11 @@ function resolveEl(name: string): Element | undefined {
   return document.querySelector(sel) ?? undefined;
 }
 
-function fidelity(preview: unknown): string {
-  return `<code>${esc(JSON.stringify(preview ?? {}))}</code>`;
+// Turn a raw tool id (`ui_clear_board`, `restore_task`) into a friendly action phrase
+// ("Clear board", "Restore task"). We never surface the snake_case id or its JSON args.
+function humanize(name: string): string {
+  const words = name.replace(/^ui_/, '').replace(/[_-]+/g, ' ').trim();
+  return esc(words.charAt(0).toUpperCase() + words.slice(1));
 }
 
 export function createSpotlight(approveUrl: string, decideBase?: string): Spotlight {
@@ -91,7 +110,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
     live.textContent = t;
   };
 
-  let active: { id: string; name: string; preview: unknown } | undefined;
+  let active: { id: string; name: string } | undefined;
   let clearTimer: ReturnType<typeof setTimeout> | undefined;
   const cancelClear = () => {
     if (clearTimer) clearTimeout(clearTimer);
@@ -139,7 +158,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
     d.highlight({
       element: resolveEl(name),
       popover: {
-        title: `Agent · ${name}`,
+        title: humanize(name),
         description,
         showButtons: [], // no decision buttons in the app tab (AC-4)
         side: 'top',
@@ -153,9 +172,9 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
       switch (m.type) {
         case 'intent':
           if (!m.id || !m.name) break;
-          active = { id: m.id, name: m.name, preview: m.argsPreview };
-          show(m.name, `Agent wants to run this.<br>${fidelity(m.argsPreview)}`);
-          say(`Agent requesting ${m.name}`);
+          active = { id: m.id, name: m.name };
+          show(m.name, `<span class="gmc-kicker">Agent action</span>The agent wants to run this.`);
+          say(`Agent requesting ${humanize(m.name)}`);
           break;
 
         case 'gate':
@@ -164,40 +183,40 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
             const inline = !!decideBase && !!approverToken;
             show(
               active.name,
-              `⏳ Waiting for owner approval…<br>${fidelity(active.preview)}` +
+              `<span class="gmc-kicker">Needs approval</span>Allow the agent to run this?` +
                 (inline
                   ? `<div class="gmc-approve-row"><button class="gmc-decide gmc-approve" data-approve="1">Approve</button><button class="gmc-decide gmc-deny" data-approve="0">Deny</button></div>`
-                  : `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`),
+                  : `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">Open approval page →</a>`),
               { lock: true, klass: 'gmc-pending', decide: active.id },
             );
-            say(`${active.name} needs owner approval — waiting`);
+            say(`${humanize(active.name)} needs owner approval — waiting`);
           } else {
-            say(`${active.name} allowed automatically`);
+            say(`${humanize(active.name)} allowed automatically`);
           }
           break;
 
         case 'decided':
           if (!active || m.id !== active.id) break;
           if (m.decision === 'denied') {
-            show(active.name, `⛔ Denied by policy gate.`, { klass: 'gmc-denied' });
-            say(`${active.name} denied by policy gate`);
+            show(active.name, `<span class="gmc-kicker">Blocked</span>Denied by the policy gate.`, { klass: 'gmc-denied' });
+            say(`${humanize(active.name)} denied by policy gate`);
             scheduleClear(1100);
             active = undefined;
           } else {
-            show(active.name, `✅ Approved — running…`, { klass: 'gmc-done' });
-            say(`${active.name} approved, running`);
+            show(active.name, `<span class="gmc-kicker">Approved</span>Running now.`, { klass: 'gmc-done' });
+            say(`${humanize(active.name)} approved, running`);
           }
           break;
 
         case 'call':
           if (!active || m.id !== active.id) break;
-          show(active.name, `⚙️ Running…`, { klass: 'gmc-done' });
+          show(active.name, `<span class="gmc-kicker">Running</span>Applying the change.`, { klass: 'gmc-done' });
           break;
 
         case 'done':
           if (!active || m.id !== active.id) break;
-          show(active.name, `✅ Done.`, { klass: 'gmc-done' });
-          say(`${active.name} done`);
+          show(active.name, `<span class="gmc-kicker">Done</span>Change applied.`, { klass: 'gmc-done' });
+          say(`${humanize(active.name)} done`);
           scheduleClear(700);
           active = undefined;
           break;

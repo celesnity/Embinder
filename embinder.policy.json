@@ -1,18 +1,50 @@
 {
-  "$comment": "Authoritative per-tool risk policy. Wins over first-party destructiveHint. Unknown tools deny-by-default.",
+  "$comment": "Authoritative per-tool risk policy. read/write pass silently; destructive pauses for human approval. Only super-critical (mass / irreversible) tools are destructive. Unknown tools deny-by-default.",
   "unknownTool": "destructive",
   "tools": {
     "__gmc_ready": "read",
-    "task_board": "read",
-    "archive_list": "read",
+    "current_screen": "read",
+
+    "list_tasks": "read",
+    "get_task": "read",
+    "search_tasks": "read",
+    "list_columns": "read",
+    "list_tags": "read",
+    "board_stats": "read",
+    "get_view": "read",
+    "list_pages": "read",
+    "where_am_i": "read",
+    "export_board": "read",
+
     "add_task": "write",
     "edit_task": "write",
-    "restore_task": "write",
-    "delete_task": "destructive",
+    "toggle_task": "write",
+    "set_priority": "write",
+    "set_due_date": "write",
+    "add_tag": "write",
+    "remove_tag": "write",
+    "assign_task": "write",
+    "move_task": "write",
+    "mark_all_done": "write",
+    "add_column": "write",
+    "rename_column": "write",
+    "set_view": "write",
+    "set_filter": "write",
+    "clear_filter": "write",
+    "go_to_page": "write",
+    "scroll_to": "write",
+    "undo": "write",
+
+    "delete_task": "write",
+    "clear_completed": "write",
+    "archive_done": "write",
+    "delete_column": "write",
+
     "delete_all_tasks": "destructive",
-    "purge_archive": "destructive"
+    "bulk_delete": "destructive",
+    "import_board": "destructive"
   },
   "rateLimit": {
-    "perToolPerMin": 30
+    "perToolPerMin": 60
   }
 }
