@@ -84,7 +84,9 @@ let muteRestore = false; // when true, restore_task calls go unanswered (unmount
 // --- boot relay -------------------------------------------------------------
 const relay = spawn('npx', ['tsx', 'packages/relay/src/server.ts'], {
   stdio: ['ignore', 'pipe', 'inherit'],
-  env: { ...process.env, LLM_BASE_URL: 'http://127.0.0.1:4242/v1', LLM_MODEL: 'demo-model' },
+  // Pin GMC_INLINE_APPROVAL off so the "/approver-token disabled by default" assertion is
+  // deterministic regardless of a developer's local .env (loadEnvFile won't override a preset var).
+  env: { ...process.env, LLM_BASE_URL: 'http://127.0.0.1:4242/v1', LLM_MODEL: 'demo-model', GMC_INLINE_APPROVAL: '0' },
 });
 await new Promise((resolve, reject) => {
   const t = globalThis.setTimeout(() => reject(new Error('relay did not start in 10s')), 10_000);
@@ -144,6 +146,7 @@ try {
     if (m.name === 'add_task') { const t = { id: `t${nextId++}`, text: m.args.text }; board.push(t); result = { ok: true, added: t }; }
     else if (m.name === 'delete_all_tasks') { const n = board.length; board.length = 0; result = { ok: true, cleared: n }; }
     else if (m.name === 'delete_task') { const i = board.findIndex((t) => t.id === m.args.id); if (i >= 0) board.splice(i, 1); result = { ok: true }; }
+    else if (m.name === 'bulk_delete') { const before = board.length; for (let i = board.length - 1; i >= 0; i--) if (board[i].id === m.args.id) board.splice(i, 1); result = { ok: true, deleted: before - board.length }; }
     else if (m.name === 'restore_task') { if (muteRestore) return; result = { ok: true, restored: m.args.id }; }
     else if (m.name === 'purge_archive') result = { ok: true, purged: 0 };
     else result = { ok: false };
@@ -156,7 +159,7 @@ try {
   const unreg = (name) => send({ type: 'unregister', name });
 
   // Board page (like BoardPage mounting): context-only pointer + callable capabilities.
-  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks'];
+  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks', 'bulk_delete'];
   function mountBoard() {
     reg('task_board', { type: 'object', properties: {} }, { embinderContextOnly: true });
     reg('add_task', { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, {});
@@ -164,6 +167,9 @@ try {
     reg('edit_task', { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } }, required: ['id', 'text'] }, {});
     reg('delete_task', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
     reg('delete_all_tasks', { type: 'object', properties: {} }, { destructiveHint: true });
+    // bulk_delete is 'destructive' in embinder.policy.json AND takes a string arg — used to
+    // exercise the tampered-args/canonical fidelity path (single delete_task is 'write' in policy).
+    reg('bulk_delete', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
     pushBoardContext();
   }
   const ARCHIVE_TOOLS = ['restore_task', 'purge_archive'];
@@ -225,7 +231,7 @@ try {
   await badP.catch(() => {});
 
   // --- fidelity: hidden unicode flagged, canonical executes (AC-5) ---------
-  const tamperP = client.callTool({ name: 'delete_task', arguments: { id: 't1​​' } });
+  const tamperP = client.callTool({ name: 'bulk_delete', arguments: { id: 't1​​' } });
   const pend4 = await firstPending();
   assert(pend4 && pend4.tampered === true, 'SC-6 tampered args flagged (raw ≠ canonical)');
   assert(pend4.canonical.id === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
