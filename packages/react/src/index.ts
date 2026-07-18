@@ -31,3 +31,5 @@ export type { ChatBubbleConfig } from './chat/ChatBubble.js';
 // Agent-aware wrapper components (declarative override of native elements).
 export { AgentButton } from './components/AgentButton.js';
 export type { AgentButtonProps } from './components/AgentButton.js';
+export { AgentInput } from './components/AgentInput.js';
+export type { AgentInputProps } from './components/AgentInput.js';
