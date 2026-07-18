@@ -31,6 +31,9 @@ const CSS = `
 .gmc-popover.gmc-done{box-shadow:0 0 0 2px #6ee7a0}
 .gmc-approve-link{display:inline-block;margin-top:8px;color:#8ab4ff;font-weight:600;text-decoration:none}
 @keyframes gmc-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+.gmc-popover .gmc-decide{flex:1;font-size:13px;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid #444}
+.gmc-popover .gmc-approve{background:#183d1e;color:#7ee29a;border-color:#2a5}
+.gmc-popover .gmc-deny{background:#3d1818;color:#ff8a8a;border-color:#a33}
 `;
 
 function injectStyle() {
@@ -54,7 +57,16 @@ function fidelity(preview: unknown): string {
   return `<code>${esc(JSON.stringify(preview ?? {}))}</code>`;
 }
 
-export function createSpotlight(approveUrl: string): Spotlight {
+export function createSpotlight(approveUrl: string, decideBase?: string): Spotlight {
+  let approverToken: string | undefined;
+  if (decideBase) {
+    fetch(`${decideBase}/approver-token`)
+      .then((r) => (r.ok ? r.json() : undefined))
+      .then((j) => {
+        approverToken = j?.token;
+      })
+      .catch(() => {});
+  }
   injectStyle();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -89,12 +101,40 @@ export function createSpotlight(approveUrl: string): Spotlight {
     clearTimer = setTimeout(() => d.destroy(), reduce ? 0 : ms);
   };
 
-  function show(name: string, description: string, opts: { lock?: boolean; klass?: string } = {}) {
+  async function postDecide(id: string, approve: boolean) {
+    if (!decideBase || !approverToken) return;
+    await fetch(`${decideBase}/api/decide`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-approver-token': approverToken },
+      body: JSON.stringify({ id, approve }),
+    }).catch(() => {});
+  }
+
+  function show(
+    name: string,
+    description: string,
+    opts: { lock?: boolean; klass?: string; decide?: string } = {},
+  ) {
     cancelClear();
+    const decideId = opts.decide;
     d.setConfig({
       ...base,
       disableActiveInteraction: !!opts.lock,
       popoverClass: opts.klass ? `gmc-popover ${opts.klass}` : 'gmc-popover',
+      onPopoverRender:
+        decideId && approverToken
+          ? (popover) => {
+              const mk = (label: string, cls: string, approve: boolean) => {
+                const b = document.createElement('button');
+                b.innerText = label;
+                b.className = `driver-popover-footer-btn gmc-decide ${cls}`;
+                b.addEventListener('click', () => void postDecide(decideId, approve));
+                popover.footerButtons.appendChild(b);
+              };
+              mk('Approve', 'gmc-approve', true);
+              mk('Deny', 'gmc-deny', false);
+            }
+          : undefined,
     });
     d.highlight({
       element: resolveEl(name),
@@ -121,11 +161,14 @@ export function createSpotlight(approveUrl: string): Spotlight {
         case 'gate':
           if (!active || m.id !== active.id) break;
           if (m.status === 'awaiting') {
+            const inline = !!decideBase && !!approverToken;
             show(
               active.name,
               `⏳ Waiting for owner approval…<br>${fidelity(active.preview)}` +
-                `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`,
-              { lock: true, klass: 'gmc-pending' },
+                (inline
+                  ? ''
+                  : `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`),
+              { lock: true, klass: 'gmc-pending', decide: active.id },
             );
             say(`${active.name} needs owner approval — waiting`);
           } else {

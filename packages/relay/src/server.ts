@@ -25,6 +25,7 @@ import { loadPolicy, riskOf } from './policy.js';
 import { gate, type GateCtx } from './gate.js';
 import { mintToken, tokenMatches, hostAllowed, originAllowed } from './security.js';
 import { mountApprovalRoutes } from './approval-routes.js';
+import { mountChatRoute } from './chat.js';
 import { enableCliApprovals, canonicalize } from './approval.js';
 
 // A broken stdout pipe (parent process killed us mid-log) must not crash the relay.
@@ -99,6 +100,41 @@ interface Session {
 }
 const sessions = new Map<string, Session>();
 
+// Shared gate+forward pipeline. Used by BOTH the MCP tool handler and the /chat route,
+// so a bubble-driven agent and an external MCP agent travel the identical gate (one gate).
+async function runGatedCall(
+  name: string,
+  args: unknown,
+  destructive: boolean,
+  session: string | undefined,
+  signal: AbortSignal,
+  keepAlive?: () => void,
+): Promise<CallToolResult> {
+  const id = randomUUID(); // one id for the whole lifecycle (T-K2)
+  const risk = riskOf(policy, name, destructive);
+  const canonicalPreview = canonicalize(args);
+
+  // T-K: tell the app what's about to happen (display only — app executes nothing until `call`).
+  emitToApp('intent', { id, name, argsPreview: canonicalPreview });
+  emitToApp('gate', { id, status: risk === 'destructive' ? 'awaiting' : 'auto' });
+
+  const ctx: GateCtx = {
+    session,
+    auditPath: AUDIT_PATH,
+    rateLimitPerMin: policy.rateLimit?.perToolPerMin,
+    keepAlive,
+  };
+
+  try {
+    const canonicalArgs = await gate(name, args, risk, signal, ctx);
+    if (risk === 'destructive') emitToApp('decided', { id, decision: 'approved' });
+    return await forwardToBrowser(id, name, canonicalArgs);
+  } catch (err) {
+    if (risk === 'destructive') emitToApp('decided', { id, decision: 'denied' });
+    throw err;
+  }
+}
+
 function registerGatedTool(
   server: McpServer,
   tools: Session['tools'],
@@ -107,37 +143,21 @@ function registerGatedTool(
 ) {
   if (tools.has(name)) tools.get(name)!.remove();
   const tool = server.registerTool(name, def.config, async (args: unknown, extra) => {
-    const id = randomUUID(); // one id for the whole lifecycle (T-K2)
-    const risk = riskOf(policy, name, def.destructive);
-    const canonicalPreview = canonicalize(args);
-
-    // T-K: tell the app what's about to happen (display only — app executes nothing until `call`).
-    emitToApp('intent', { id, name, argsPreview: canonicalPreview });
-    emitToApp('gate', { id, status: risk === 'destructive' ? 'awaiting' : 'auto' });
-
-    const ctx: GateCtx = {
-      session: extra.sessionId,
-      auditPath: AUDIT_PATH,
-      rateLimitPerMin: policy.rateLimit?.perToolPerMin,
+    return runGatedCall(
+      name,
+      args,
+      def.destructive,
+      extra.sessionId,
+      extra.signal,
       // Keep the MCP stream alive while a human decides (weak clients otherwise idle-timeout).
-      keepAlive: () =>
+      () =>
         void extra
           .sendNotification({
             method: 'notifications/message',
             params: { level: 'debug', logger: 'grabmycursor', data: `awaiting approval for ${name}` },
           })
           .catch(() => {}),
-    };
-
-    try {
-      // gate pauses/denies destructive, passes read/write, returns the CANONICAL args to run.
-      const canonicalArgs = await gate(name, args, risk, extra.signal, ctx);
-      if (risk === 'destructive') emitToApp('decided', { id, decision: 'approved' });
-      return await forwardToBrowser(id, name, canonicalArgs);
-    } catch (err) {
-      if (risk === 'destructive') emitToApp('decided', { id, decision: 'denied' });
-      throw err;
-    }
+    );
   });
   tools.set(name, tool);
 }
@@ -186,15 +206,36 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// CORS for the app tab (:5173) so the browser bubble can POST /chat and /api/decide.
+// Origin is already allowlisted by the middleware above; echo it and answer preflights.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && originAllowed(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, x-approver-token');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // T-G1: the browser app fetches its ws token here (Origin-gated to :5173 by the middleware above).
 app.get('/app-token', (req: Request, res: Response) => {
-  const origin = req.headers.origin;
-  if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
   res.json({ token: APP_TOKEN });
+});
+
+// Opt-in (GMC_INLINE_APPROVAL=1): lets the app tab drive the driver.js Approve/Deny buttons.
+// Off by default → the strict out-of-tab posture holds (decide only from /approve).
+app.get('/approver-token', (req: Request, res: Response) => {
+  if (process.env.GMC_INLINE_APPROVAL !== '1') return res.status(403).json({ error: 'inline approval disabled' });
+  res.json({ token: APPROVER_TOKEN });
 });
 
 // T-E1/E2: approval surface (out-of-tab).
 mountApprovalRoutes(app, APPROVER_TOKEN);
+// T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
+mountChatRoute(app, { toolRegistry, runGatedCall });
 enableCliApprovals();
 
 const httpServer = app.listen(PORT, HOST, () => {

@@ -28,10 +28,26 @@ Headless proof any time: `npm run e2e` → `✅ E2E + GATE GREEN`.
 AC-7 manual check: set `rateLimit.perToolPerMin` low in `grabmycursor.policy.json`, call a tool in a
 loop from Inspector; the N+1th returns "Rate limit exceeded" and audit shows `approver:"rate-limit"`.
 
-## 2. Model bake-off (D8)
+## 2. In-app chat bubble (optional)
+
+Feature-flagged; off by default. Enable via `<GrabMyCursorProvider chat={{ baseURL, model }}>`.
+
+Relay env:
+- `LLM_KEY` — API key for the OpenAI-compatible endpoint (stays server-side; never sent to the browser).
+- `LLM_BASE_URL_ALLOWLIST` — comma-separated allowed hostnames for the browser-supplied baseURL (default `127.0.0.1,localhost`).
+- `GMC_INLINE_APPROVAL=1` — enable the driver.js Approve/Deny buttons in the app tab (needs `viz`). Off → decisions happen only on `/approve`.
+
+Run (LM Studio preset):
+```bash
+GMC_INLINE_APPROVAL=1 npm run relay
+npm run todo
+# LM Studio (or any OpenAI-compatible server) on 127.0.0.1:1234, a model loaded
+```
+
+## 3. Model bake-off (D8)
 
 Load in LM Studio (Chat → Integrations → edit `mcp.json` = repo `mcp.json`). Test each with the
-script in §3 and record which reliably tool-calls (watch :5173 mutate — never trust the model's prose).
+script in §4 and record which reliably tool-calls (watch :5173 mutate — never trust the model's prose).
 
 | Model | Tool-calls reliably? | Notes |
 |-------|----------------------|-------|
@@ -42,7 +58,7 @@ script in §3 and record which reliably tool-calls (watch :5173 mutate — never
 
 Turn OFF LM Studio's own tool-confirm (auto-approve) so the **relay gate** is the only gate on screen.
 
-## 3. Rehearsal script (D9)
+## 4. Rehearsal script (D9)
 
 1. "What tasks are on the board?" → agent calls `list_tasks` (read, passes gate). Board shown.
 2. "Add buy milk, eggs, and bread." → 3× `add_task` (write, passes gate). Tasks appear live at :5173.
@@ -56,7 +72,7 @@ Turn OFF LM Studio's own tool-confirm (auto-approve) so the **relay gate** is th
 
 Record a backup video of this exact run.
 
-## 4. Talking point (positioning)
+## 5. Talking point (positioning)
 
 GrabMyCursor is **governance ON WebMCP**, not an anti-injection oracle. The differentiator vs CopilotKit
 HITL: the human gate lives **server-side, off the agent-driven tab** — the agent cannot reach the

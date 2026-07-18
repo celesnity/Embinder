@@ -13,3 +13,5 @@ export type { ToolDescriptor, ModelContextSurface } from './model-context.js';
 
 // Re-export the WebMCP hook so apps declare tools with one import (T-B2).
 export { useWebMCP } from '@mcp-b/react-webmcp';
+
+export type { ChatBubbleConfig } from './chat/ChatBubble.js';

@@ -12,7 +12,7 @@
 //  5. T-K: relay phase events (intent/gate/decided/call) are forwarded to an optional spotlight
 //     listener; the driver.js spotlight is dynamically imported ONLY when viz is on.
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type ReactElement } from 'react';
 import { getModelContext, type ModelContextSurface, type ToolDescriptor } from './model-context.js';
 import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no driver.js at runtime
 
@@ -130,9 +130,11 @@ export interface GrabMyCursorProviderProps {
   token?: string;
   /** T-K: enable the agent-action spotlight + gate visualization (D7 polish, off by default). */
   viz?: boolean;
+  /** T-CB4: mount the in-app chat bubble (optional, dynamic-imported → zero cost when absent). */
+  chat?: import('./chat/ChatBubble.js').ChatBubbleConfig;
 }
 
-export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz = false }: GrabMyCursorProviderProps) {
+export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz = false, chat }: GrabMyCursorProviderProps) {
   ensureShim(url, token);
 
   // T-K: load the spotlight only when the flag is on (zero driver.js cost when off).
@@ -142,7 +144,7 @@ export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz =
     let cancelled = false;
     import('./spotlight.js').then(({ createSpotlight }) => {
       if (cancelled) return;
-      sp = createSpotlight(`${httpBaseFrom(url)}/approve`);
+      sp = createSpotlight(`${httpBaseFrom(url)}/approve`, httpBaseFrom(url));
       singleton!.setPhaseListener((m) => sp!.handle(m));
     });
     return () => {
@@ -152,5 +154,23 @@ export function GrabMyCursorProvider({ children, url = DEFAULT_URL, token, viz =
     };
   }, [viz, url]);
 
-  return <>{children}</>;
+  // T-CB4: dynamic-import the chat bubble only when the `chat` prop is provided.
+  const [Bubble, setBubble] = useState<null | ((c: unknown) => ReactElement)>(null);
+  useEffect(() => {
+    if (!chat) return;
+    let cancelled = false;
+    import('./chat/ChatBubble.js').then(({ ChatBubble }) => {
+      if (!cancelled) setBubble(() => ChatBubble as (c: unknown) => ReactElement);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [chat]);
+
+  return (
+    <>
+      {children}
+      {Bubble ? <Bubble {...(chat as object)} /> : null}
+    </>
+  );
 }

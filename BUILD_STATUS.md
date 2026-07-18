@@ -73,6 +73,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | **T-I1** LM Studio wiring | ✅ | `mcp.json` committed; setup in `docs/DEMO.md` |
 | **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`) |
 | **T-K0–K5** Spotlight + gate viz (`GRABMYCURSOR_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
+| **T-CB0–CB7** In-app chat bubble (Arch A) | ✅ | `/chat` route reuses registry + `runGatedCall` (one gate); `<ChatBubble>` via `useChatRuntime`; key in relay env (`LLM_KEY`); baseURL allowlist; driver.js Approve/Deny opt-in (`GMC_INLINE_APPROVAL=1`); proven in `npm run e2e` (stub LLM). Off by default → zero bundle. |
 
 ---
 
