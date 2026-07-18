@@ -41,3 +41,5 @@ export { AgentCheckbox } from './components/AgentCheckbox.js';
 export type { AgentCheckboxProps } from './components/AgentCheckbox.js';
 export { AgentRadioGroup } from './components/AgentRadioGroup.js';
 export type { AgentRadioGroupProps } from './components/AgentRadioGroup.js';
+export { AgentToggle } from './components/AgentToggle.js';
+export type { AgentToggleProps } from './components/AgentToggle.js';
