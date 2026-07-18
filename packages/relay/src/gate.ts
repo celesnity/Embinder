@@ -15,6 +15,9 @@ export interface GateCtx {
   auditPath: string;
   rateLimitPerMin?: number;
   keepAlive?: () => void; // called ~every 15s while waiting, to keep the MCP stream alive
+  // Lifecycle id from runGatedCall. The pending-approval entry MUST be keyed by this same id
+  // so the inline Approve button (which posts the phase-event id) resolves the right call.
+  id?: string;
 }
 
 // ---- rate limit (T-F2) ------------------------------------------------------
@@ -56,7 +59,8 @@ export async function gate(
 
   if (signal.aborted) throw new Error('aborted');
 
-  const id = randomUUID();
+  // Reuse the lifecycle id so the pending entry matches the phase-event id the UI approves against.
+  const id = ctx.id ?? randomUUID();
   audit(ctx.auditPath, { ...base, decision: 'pending', latencyMs: 0 }); // intent
 
   // Keep the MCP stream alive while a human decides (no hard deadline here, T-D2 decision #2).

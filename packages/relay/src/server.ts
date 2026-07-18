@@ -132,6 +132,7 @@ async function runGatedCall(
     auditPath: AUDIT_PATH,
     rateLimitPerMin: policy.rateLimit?.perToolPerMin,
     keepAlive,
+    id, // key the pending approval by the lifecycle id so inline Approve/Deny resolves this call
   };
 
   try {

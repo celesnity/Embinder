@@ -72,28 +72,26 @@ export async function performDrag(source: Element, target: Element): Promise<voi
   const from = center(source);
   const to = center(target);
   try {
+    // Fire drag events on the KNOWN source/target, never on document.elementFromPoint(): the
+    // ghost cursor and the driver.js spotlight overlay sit on top during a run, and the driver
+    // overlay lives OUTSIDE the React root — a drop dispatched there never reaches React's
+    // delegated onDrop, so the app's MOVE_TASK would never fire. Coordinates still track the
+    // real path so pointer-based libs (dnd-kit) and the app's drag-over highlight react.
     firePointer(source, 'pointerdown', from.x, from.y);
     fireMouse(source, 'mousedown', from.x, from.y);
-    fireDrag(source, 'dragstart', from.x, from.y, dt);
+    fireDrag(source, 'dragstart', from.x, from.y, dt); // app's onDragStart writes text/plain onto dt
+    fireDrag(target, 'dragenter', from.x, from.y, dt);
 
-    let last: Element = source;
     await ghostPath(from, to, (x, y) => {
-      const under = document.elementFromPoint(x, y) ?? target;
-      firePointer(under, 'pointermove', x, y);
-      fireMouse(under, 'mousemove', x, y);
-      if (under !== last) {
-        fireDrag(last, 'dragleave', x, y, dt);
-        fireDrag(under, 'dragenter', x, y, dt);
-        last = under;
-      }
-      fireDrag(under, 'dragover', x, y, dt);
+      firePointer(target, 'pointermove', x, y);
+      fireDrag(target, 'dragover', x, y, dt);
     });
 
-    const under = document.elementFromPoint(to.x, to.y) ?? target;
-    fireDrag(under, 'drop', to.x, to.y, dt);
+    fireDrag(target, 'dragover', to.x, to.y, dt);
+    fireDrag(target, 'drop', to.x, to.y, dt); // app's onDrop reads text/plain → dispatches MOVE_TASK
     fireDrag(source, 'dragend', to.x, to.y, dt);
-    firePointer(under, 'pointerup', to.x, to.y);
-    fireMouse(under, 'mouseup', to.x, to.y);
+    firePointer(target, 'pointerup', to.x, to.y);
+    fireMouse(target, 'mouseup', to.x, to.y);
   } finally {
     ghost?.release();
   }
