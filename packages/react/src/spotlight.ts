@@ -1,9 +1,11 @@
 // SpotlightController (T-K3/K4/K5) — drives driver.js from relay phase events.
 // Dynamically imported by EmbinderProvider ONLY when viz is on, so driver.js + CSS cost nothing
-// when the flag is off. AC-8. Never opens an approve/deny surface (AC-4) — display only.
+// when the flag is off. AC-8. Renders inline Approve/Deny on-screen for gated tools (the
+// out-of-tab /approve page was removed — the app tab decides via the approver-token).
 
 import { driver, type Driver, type Config } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import { resolveAgentTarget } from './resolve-target.js';
 
 export interface PhaseMessage {
   type: 'intent' | 'gate' | 'decided' | 'call' | 'done';
@@ -65,11 +67,6 @@ function esc(s: string): string {
   return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 }
 
-function resolveEl(name: string): Element | undefined {
-  const sel = `[data-embinder-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
-  return document.querySelector(sel) ?? undefined;
-}
-
 // Turn a raw tool id (`ui_clear_board`, `restore_task`) into a friendly action phrase
 // ("Clear board", "Restore task"). We never surface the snake_case id or its JSON args.
 function humanize(name: string): string {
@@ -77,7 +74,7 @@ function humanize(name: string): string {
   return esc(words.charAt(0).toUpperCase() + words.slice(1));
 }
 
-export function createSpotlight(approveUrl: string, decideBase?: string): Spotlight {
+export function createSpotlight(decideBase?: string): Spotlight {
   let approverToken: string | undefined;
   if (decideBase) {
     fetch(`${decideBase}/approver-token`)
@@ -112,7 +109,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
 
   // `gated` flips true only when a tool actually pauses for approval. The spotlight
   // is shown ONLY for gated tools — auto-passed read/write tools stay invisible.
-  let active: { id: string; name: string; gated: boolean } | undefined;
+  let active: { id: string; name: string; gated: boolean; itemId?: string } | undefined;
   let clearTimer: ReturnType<typeof setTimeout> | undefined;
   const cancelClear = () => {
     if (clearTimer) clearTimeout(clearTimer);
@@ -135,7 +132,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
   function show(
     name: string,
     description: string,
-    opts: { lock?: boolean; klass?: string; decide?: string } = {},
+    opts: { lock?: boolean; klass?: string; decide?: string; itemId?: string } = {},
   ) {
     cancelClear();
     const decideId = opts.decide;
@@ -158,11 +155,11 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
           : undefined,
     });
     d.highlight({
-      element: resolveEl(name),
+      element: resolveAgentTarget(name, opts.itemId),
       popover: {
         title: humanize(name),
         description,
-        showButtons: [], // no decision buttons in the app tab (AC-4)
+        showButtons: [], // driver.js footer disabled — we render our own Approve/Deny inline
         side: 'top',
         align: 'center',
       },
@@ -176,7 +173,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
         // until the gate phase. Auto-passed tools never get a popover. (a11y-only.)
         case 'intent':
           if (!m.id || !m.name) break;
-          active = { id: m.id, name: m.name, gated: false };
+          active = { id: m.id, name: m.name, gated: false, itemId: (m.argsPreview as { id?: string } | undefined)?.id };
           say(`Agent requesting ${humanize(m.name)}`);
           break;
 
@@ -184,14 +181,11 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
           if (!active || m.id !== active.id) break;
           if (m.status === 'awaiting') {
             active.gated = true; // this tool pauses → the ONLY case we surface a popover
-            const inline = !!decideBase && !!approverToken;
             show(
               active.name,
               `<span class="gmc-kicker">Needs approval</span>Allow the agent to run this?` +
-                (inline
-                  ? `<div class="gmc-approve-row"><button class="gmc-decide gmc-approve" data-approve="1">Approve</button><button class="gmc-decide gmc-deny" data-approve="0">Deny</button></div>`
-                  : `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">Open approval page →</a>`),
-              { lock: true, klass: 'gmc-pending', decide: active.id },
+                `<div class="gmc-approve-row"><button class="gmc-decide gmc-approve" data-approve="1">Approve</button><button class="gmc-decide gmc-deny" data-approve="0">Deny</button></div>`,
+              { lock: true, klass: 'gmc-pending', decide: active.id, itemId: active.itemId },
             );
             say(`${humanize(active.name)} needs owner approval — waiting`);
           } else {
@@ -205,14 +199,14 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
           if (!active || m.id !== active.id) break;
           if (m.decision === 'denied') {
             if (active.gated) {
-              show(active.name, `<span class="gmc-kicker">Blocked</span>Denied by the policy gate.`, { klass: 'gmc-denied' });
+              show(active.name, `<span class="gmc-kicker">Blocked</span>Denied by the policy gate.`, { klass: 'gmc-denied', itemId: active.itemId });
               scheduleClear(1100);
             }
             say(`${humanize(active.name)} denied by policy gate`);
             active = undefined;
           } else {
             if (active.gated) {
-              show(active.name, `<span class="gmc-kicker">Approved</span>Running now.`, { klass: 'gmc-done' });
+              show(active.name, `<span class="gmc-kicker">Approved</span>Running now.`, { klass: 'gmc-done', itemId: active.itemId });
             }
             say(`${humanize(active.name)} approved, running`);
           }
@@ -220,13 +214,13 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
 
         case 'call':
           if (!active || m.id !== active.id) break;
-          if (active.gated) show(active.name, `<span class="gmc-kicker">Running</span>Applying the change.`, { klass: 'gmc-done' });
+          if (active.gated) show(active.name, `<span class="gmc-kicker">Running</span>Applying the change.`, { klass: 'gmc-done', itemId: active.itemId });
           break;
 
         case 'done':
           if (!active || m.id !== active.id) break;
           if (active.gated) {
-            show(active.name, `<span class="gmc-kicker">Done</span>Change applied.`, { klass: 'gmc-done' });
+            show(active.name, `<span class="gmc-kicker">Done</span>Change applied.`, { klass: 'gmc-done', itemId: active.itemId });
             scheduleClear(700);
           }
           say(`${humanize(active.name)} done`);
