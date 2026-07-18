@@ -1,8 +1,8 @@
 {
-  "name": "warden",
+  "name": "grabmycursor",
   "version": "0.1.0",
   "private": true,
-  "description": "Minder (Warden) — WebMCP-native relay with a server-side policy gate",
+  "description": "GrabMyCursor — a map for agents to drive your app: WebMCP-native SDK with a server-side policy gate and live action spotlight",
   "workspaces": [
     "packages/*",
     "apps/*"

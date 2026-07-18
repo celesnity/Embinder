@@ -1,8 +1,11 @@
-# Minder / Warden — Build Status Report
+# GrabMyCursor — Build Status Report
 
-Progress against **`MINDER_BUILD_GUIDE.md`**, verified against the upstream source cloned into `.references/`.
+_A map for agents to drive your app: WebMCP-native SDK · server-side policy gate · live action spotlight._
+_(Working names during development: Minder / Warden. Repo: `celesnity/GrabMyCursor`.)_
 
-**Status:** D1–D7 complete · **Gate + approval + hardening GREEN** — `npm run e2e` passes 17 assertions covering AC-1→AC-6 (AC-7 manual). Remaining: D8–D10 (model bake-off, rehearsal, ship) — see `docs/DEMO.md`.
+Progress against **`MINDER_BUILD_GUIDE.md`** + **`MINDER_SPOTLIGHT_GUIDE.md`**, verified against the upstream source cloned into `.references/`.
+
+**Status:** D1–D7 complete · **Gate + approval + spotlight GREEN** — `npm run e2e` passes 17 assertions covering AC-1→AC-6 (AC-7 manual); AC-8 spotlight built & feature-flagged. Remaining: D8–D10 (model bake-off, rehearsal, ship) — see `docs/DEMO.md`.
 
 _Last updated: 2026-07-18_
 
