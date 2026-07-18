@@ -1,15 +1,15 @@
 {
-  "name": "grabmycursor",
+  "name": "embinder",
   "version": "0.1.0",
   "private": true,
-  "description": "GrabMyCursor — a map for agents to drive your app: WebMCP-native SDK with a server-side policy gate and live action spotlight",
+  "description": "Embinder — a map for agents to drive your app: WebMCP-native SDK with a server-side policy gate and live action spotlight",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "relay": "npm run dev -w @grabmycursor/relay",
+    "relay": "npm run dev -w @embinder/relay",
     "todo": "npm run dev -w todo",
     "e2e": "node scripts/e2e.mjs",
     "build": "npm run build --workspaces --if-present",

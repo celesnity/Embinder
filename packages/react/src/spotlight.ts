@@ -1,5 +1,5 @@
 // SpotlightController (T-K3/K4/K5) — drives driver.js from relay phase events.
-// Dynamically imported by GrabMyCursorProvider ONLY when viz is on, so driver.js + CSS cost nothing
+// Dynamically imported by EmbinderProvider ONLY when viz is on, so driver.js + CSS cost nothing
 // when the flag is off. AC-8. Never opens an approve/deny surface (AC-4) — display only.
 
 import { driver, type Driver, type Config } from 'driver.js';
@@ -49,7 +49,7 @@ function esc(s: string): string {
 }
 
 function resolveEl(name: string): Element | undefined {
-  const sel = `[data-grabmycursor-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
+  const sel = `[data-embinder-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
   return document.querySelector(sel) ?? undefined;
 }
 

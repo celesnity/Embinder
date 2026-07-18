@@ -1,10 +1,10 @@
 {
-  "name": "@grabmycursor/relay",
+  "name": "@embinder/relay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "grabmycursor-relay": "./dist/server.js"
+    "embinder-relay": "./dist/server.js"
   },
   "main": "./dist/server.js",
   "scripts": {

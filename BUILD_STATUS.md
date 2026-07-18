@@ -1,7 +1,7 @@
-# GrabMyCursor — Build Status Report
+# Embinder — Build Status Report
 
 _A map for agents to drive your app: WebMCP-native SDK · server-side policy gate · live action spotlight._
-_(Working names during development: Minder / Warden. Repo: `celesnity/GrabMyCursor`.)_
+_(Working names during development: Minder / Warden. Repo: `celesnity/Embinder`.)_
 
 Progress against **`MINDER_BUILD_GUIDE.md`** + **`MINDER_SPOTLIGHT_GUIDE.md`**, verified against the upstream source cloned into `.references/`.
 
@@ -35,15 +35,15 @@ _Last updated: 2026-07-18_
 minderSDK/
 ├─ package.json            # npm workspaces: packages/*, apps/*
 ├─ tsconfig.base.json
-├─ grabmycursor.policy.json      # authoritative risk: 5 tools; delete_task + delete_all_tasks = destructive
+├─ embinder.policy.json      # authoritative risk: 5 tools; delete_task + delete_all_tasks = destructive
 ├─ README.md
 ├─ scripts/
 │  └─ e2e.mjs              # one-command E2E round-trip test (npm run e2e)
 ├─ apps/todo/              # Vite React-TS reference app
 │  └─ src/{store.ts, App.tsx, main.tsx}
-├─ packages/react/         # @grabmycursor/react
+├─ packages/react/         # @embinder/react
 │  └─ src/{index.ts, provider.tsx, model-context.ts}
-└─ packages/relay/         # @grabmycursor/relay
+└─ packages/relay/         # @embinder/relay
    └─ src/{server, gate, approval, audit, security, policy}.ts
 ```
 
@@ -56,7 +56,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | Task | Status | Evidence / note |
 |---|---|---|
 | **T-A1** Vite React Todo + 5 actions | ✅ | `apps/todo/src/store.ts` (useReducer: ADD/TOGGLE/EDIT/DELETE/CLEAR) + `App.tsx` |
-| **T-B1** GrabMyCursorProvider = `document.modelContext` shim over ws | ✅ | `packages/react/src/provider.tsx` |
+| **T-B1** EmbinderProvider = `document.modelContext` shim over ws | ✅ | `packages/react/src/provider.tsx` |
 | **T-B2** `useWebMCP` tool declarations from component | ✅ | `App.tsx` — 5 tools; `destructiveHint` on delete_task/delete_all_tasks |
 | **T-C1** McpServer + dynamic register/unregister | ✅ | `server.ts` `registerGatedTool`, `__gmc_ready` primer before `connect()` |
 | **T-C2** Bridge tools/call → app → result | ✅ | `server.ts` `forwardToBrowser` (30s timeout, pending map) |
@@ -72,7 +72,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | **T-H1** WebMCP-native feature-detect path | ✅ | provider captures native surface, mirrors registrations (degrades to relay) |
 | **T-I1** LM Studio wiring | ✅ | `mcp.json` committed; setup in `docs/DEMO.md` |
 | **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`) |
-| **T-K0–K5** Spotlight + gate viz (`GRABMYCURSOR_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
+| **T-K0–K5** Spotlight + gate viz (`EMBINDER_VIZ`) | ✅ | driver.js spotlight; relay phase events (intent/gate/decided) w/ unified id; destructive → target **locked** + pending popover (canonical, link to `/approve`); a11y live region; feature-flagged & **code-split** (zero cost when `viz=false`) |
 | **T-CB0–CB7** In-app chat bubble (Arch A) | ✅ | `/chat` route reuses registry + `runGatedCall` (one gate); `<ChatBubble>` via `useChatRuntime`; key in relay env (`LLM_KEY`); baseURL allowlist; driver.js Approve/Deny opt-in (`GMC_INLINE_APPROVAL=1`); proven in `npm run e2e` (stub LLM). Off by default → zero bundle. |
 
 ---
@@ -99,7 +99,7 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
   (iv) two concurrent MCP sessions coexist (regresses the LM Studio "Already connected" crash).
   Regression-guarded going forward via `scripts/e2e.mjs`.
 - ⚠️ **Still to confirm manually:** the *live browser* path (`:5173` + a real MCP client such as
-  Inspector), i.e. the same round-trip with the actual `@grabmycursor/react` provider and DOM. The
+  Inspector), i.e. the same round-trip with the actual `@embinder/react` provider and DOM. The
   headless test exercises the identical wire protocol, so this is a smoke check, not a risk.
 
 ```

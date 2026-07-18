@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/banner.png" alt="GrabMyCursor — a map for agents to drive your app, in the open." width="100%" />
+  <img src="assets/banner.png" alt="Embinder — a map for agents to drive your app, in the open." width="100%" />
 </p>
 
-<h1 align="center">GrabMyCursor</h1>
+<h1 align="center">Embinder</h1>
 
 <p align="center">
   <b>A map for agents to drive your app — with a human gate they can't skip.</b><br/>
@@ -10,15 +10,15 @@
 </p>
 
 <p align="center">
-  <code>@grabmycursor/react</code> (app side) · <code>@grabmycursor/relay</code> (MCP server + gate)
+  <code>@embinder/react</code> (app side) · <code>@embinder/relay</code> (MCP server + gate)
 </p>
 
 ---
 
 ## What it is
 
-GrabMyCursor is the **map an AI agent reads to drive a web app**. Your components declare their
-actions as tools; the agent sees them, calls them, and GrabMyCursor does three things at once:
+Embinder is the **map an AI agent reads to drive a web app**. Your components declare their
+actions as tools; the agent sees them, calls them, and Embinder does three things at once:
 
 1. **Tells the agent how to interact** — every action is a WebMCP tool (`useWebMCP`), so any MCP
    client (LM Studio, Claude, Inspector) discovers exactly what your platform can do.
@@ -35,7 +35,7 @@ The difference from client-side human-in-the-loop (e.g. CopilotKit): the approve
 ## Architecture
 
 ```
- Agent ──http /mcp──▶  @grabmycursor/relay  ──ws /app──▶  Your app (@grabmycursor/react)
+ Agent ──http /mcp──▶  @embinder/relay  ──ws /app──▶  Your app (@embinder/react)
                             │  ▲                          │
      phase events ──────────┘  │                          │  useWebMCP → tools
    (intent·gate·decided)       │                          ▼
@@ -52,8 +52,8 @@ and the human approves at `/approve`.
 
 | Package | Role |
 |---|---|
-| `@grabmycursor/react` | App SDK. `GrabMyCursorProvider` (installs a `document.modelContext` shim over ws), re-exported `useWebMCP`, `grabAnchor`, and the driver.js action **spotlight** (feature-flagged, code-split). |
-| `@grabmycursor/relay` | MCP server + ws hub + **policy gate**: per-session `McpServer`, approval surface, audit log, rate limit, token/origin hardening. |
+| `@embinder/react` | App SDK. `EmbinderProvider` (installs a `document.modelContext` shim over ws), re-exported `useWebMCP`, `grabAnchor`, and the driver.js action **spotlight** (feature-flagged, code-split). |
+| `@embinder/relay` | MCP server + ws hub + **policy gate**: per-session `McpServer`, approval surface, audit log, rate limit, token/origin hardening. |
 | `apps/todo` | Reference app — a todo board exposing 5 tools, wired end-to-end. |
 
 ## Quick start
@@ -75,7 +75,7 @@ npm run e2e        # ✅ E2E + GATE GREEN  (17 assertions, AC-1..AC-6)
 ## Declaring an action (app side)
 
 ```tsx
-import { useWebMCP, grabAnchor } from '@grabmycursor/react';
+import { useWebMCP, grabAnchor } from '@embinder/react';
 
 useWebMCP({
   name: 'delete_all_tasks',
@@ -88,7 +88,7 @@ useWebMCP({
 <button {...grabAnchor('delete_all_tasks')}>Clear all</button>  // spotlight anchors here
 ```
 
-Risk is authoritative in `grabmycursor.policy.json` (`read` / `write` pass through, `destructive` pauses,
+Risk is authoritative in `embinder.policy.json` (`read` / `write` pass through, `destructive` pauses,
 unknown tools deny-by-default). `destructiveHint` from the app is only a default.
 
 ## The gate, seen

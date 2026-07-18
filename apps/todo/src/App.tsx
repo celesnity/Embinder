@@ -1,6 +1,6 @@
 import { useReducer, useRef, useState } from 'react';
 import { z } from 'zod';
-import { useWebMCP, grabAnchor } from '@grabmycursor/react';
+import { useWebMCP, grabAnchor } from '@embinder/react';
 import { reducer, initialTasks, type Task } from './store';
 import './App.css';
 
@@ -86,7 +86,7 @@ export default function App() {
 
   return (
     <main className="board">
-      <h1>GrabMyCursor Todo</h1>
+      <h1>Embinder Todo</h1>
       <p className="hint">Reference app · tools exposed via WebMCP → relay gate</p>
 
       <div className="row">

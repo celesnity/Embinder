@@ -1,4 +1,4 @@
-# GrabMyCursor — Demo, Acceptance & Rehearsal Playbook (D8–D10)
+# Embinder — Demo, Acceptance & Rehearsal Playbook (D8–D10)
 
 The code for D4–D7 is done and gate-verified headlessly (`npm run e2e`, 17 assertions).
 This playbook is the human-run part: model bake-off, acceptance walk-through, and rehearsal.
@@ -25,12 +25,12 @@ Headless proof any time: `npm run e2e` → `✅ E2E + GATE GREEN`.
 | AC-6 | Audit trail | `audit.jsonl` gains intent+outcome lines per gated call | ✅ |
 | AC-7 | Rate limit | Spam a tool > `perToolPerMin` → denied, logged | manual (see below) |
 
-AC-7 manual check: set `rateLimit.perToolPerMin` low in `grabmycursor.policy.json`, call a tool in a
+AC-7 manual check: set `rateLimit.perToolPerMin` low in `embinder.policy.json`, call a tool in a
 loop from Inspector; the N+1th returns "Rate limit exceeded" and audit shows `approver:"rate-limit"`.
 
 ## 2. In-app chat bubble (optional)
 
-Feature-flagged; off by default. Enable via `<GrabMyCursorProvider chat={{ baseURL, model }}>`.
+Feature-flagged; off by default. Enable via `<EmbinderProvider chat={{ baseURL, model }}>`.
 
 Relay env:
 - `LLM_KEY` — API key for the OpenAI-compatible endpoint (stays server-side; never sent to the browser).
@@ -74,6 +74,6 @@ Record a backup video of this exact run.
 
 ## 5. Talking point (positioning)
 
-GrabMyCursor is **governance ON WebMCP**, not an anti-injection oracle. The differentiator vs CopilotKit
+Embinder is **governance ON WebMCP**, not an anti-injection oracle. The differentiator vs CopilotKit
 HITL: the human gate lives **server-side, off the agent-driven tab** — the agent cannot reach the
 approve button, and the approver sees the exact canonical bytes that will execute.

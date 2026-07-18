@@ -82,7 +82,7 @@ await new Promise((resolve, reject) => {
   });
 });
 
-const { appToken, approverToken } = JSON.parse(readFileSync('.grabmycursor/session.json', 'utf8'));
+const { appToken, approverToken } = JSON.parse(readFileSync('.embinder/session.json', 'utf8'));
 
 // Read the first pending approval from the SSE stream.
 async function firstPending() {

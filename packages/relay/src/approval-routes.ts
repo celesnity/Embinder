@@ -47,7 +47,7 @@ export function mountApprovalRoutes(app: Express, approverToken: string): void {
 
 function renderPage(approverToken: string): string {
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>GrabMyCursor · Approvals</title>
+<html lang="en"><head><meta charset="utf-8"><title>Embinder · Approvals</title>
 <style>
   body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;background:#0b0b0d;color:#eaeaea}
   h1{font-size:1.2rem} .sub{color:#888;font-size:.85rem;margin-top:-.4rem}
@@ -62,7 +62,7 @@ function renderPage(approverToken: string): string {
   .approve{background:#183d1e;color:#7ee29a;border-color:#2a5} .deny{background:#3d1818;color:#ff8a8a;border-color:#a33}
   .lbl{color:#888;font-size:.75rem}
 </style></head><body>
-<h1>GrabMyCursor · Approvals</h1>
+<h1>Embinder · Approvals</h1>
 <p class="sub">Out-of-tab human gate. You are seeing the exact canonical bytes that will execute.</p>
 <div id="list"><div class="empty">No pending calls. Trigger a destructive tool to see it here.</div></div>
 <script>
