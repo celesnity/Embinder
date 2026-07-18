@@ -110,7 +110,9 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
     live.textContent = t;
   };
 
-  let active: { id: string; name: string } | undefined;
+  // `gated` flips true only when a tool actually pauses for approval. The spotlight
+  // is shown ONLY for gated tools — auto-passed read/write tools stay invisible.
+  let active: { id: string; name: string; gated: boolean } | undefined;
   let clearTimer: ReturnType<typeof setTimeout> | undefined;
   const cancelClear = () => {
     if (clearTimer) clearTimeout(clearTimer);
@@ -170,16 +172,18 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
   return {
     handle(m: PhaseMessage) {
       switch (m.type) {
+        // Track the tool, but show NOTHING yet — we don't know if it needs approval
+        // until the gate phase. Auto-passed tools never get a popover. (a11y-only.)
         case 'intent':
           if (!m.id || !m.name) break;
-          active = { id: m.id, name: m.name };
-          show(m.name, `<span class="gmc-kicker">Agent action</span>The agent wants to run this.`);
+          active = { id: m.id, name: m.name, gated: false };
           say(`Agent requesting ${humanize(m.name)}`);
           break;
 
         case 'gate':
           if (!active || m.id !== active.id) break;
           if (m.status === 'awaiting') {
+            active.gated = true; // this tool pauses → the ONLY case we surface a popover
             const inline = !!decideBase && !!approverToken;
             show(
               active.name,
@@ -191,33 +195,41 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
             );
             say(`${humanize(active.name)} needs owner approval — waiting`);
           } else {
+            // auto-passed: no visual, screen-reader only.
             say(`${humanize(active.name)} allowed automatically`);
           }
           break;
 
+        // From here on, only gated tools ever had a popover — the rest stay silent.
         case 'decided':
           if (!active || m.id !== active.id) break;
           if (m.decision === 'denied') {
-            show(active.name, `<span class="gmc-kicker">Blocked</span>Denied by the policy gate.`, { klass: 'gmc-denied' });
+            if (active.gated) {
+              show(active.name, `<span class="gmc-kicker">Blocked</span>Denied by the policy gate.`, { klass: 'gmc-denied' });
+              scheduleClear(1100);
+            }
             say(`${humanize(active.name)} denied by policy gate`);
-            scheduleClear(1100);
             active = undefined;
           } else {
-            show(active.name, `<span class="gmc-kicker">Approved</span>Running now.`, { klass: 'gmc-done' });
+            if (active.gated) {
+              show(active.name, `<span class="gmc-kicker">Approved</span>Running now.`, { klass: 'gmc-done' });
+            }
             say(`${humanize(active.name)} approved, running`);
           }
           break;
 
         case 'call':
           if (!active || m.id !== active.id) break;
-          show(active.name, `<span class="gmc-kicker">Running</span>Applying the change.`, { klass: 'gmc-done' });
+          if (active.gated) show(active.name, `<span class="gmc-kicker">Running</span>Applying the change.`, { klass: 'gmc-done' });
           break;
 
         case 'done':
           if (!active || m.id !== active.id) break;
-          show(active.name, `<span class="gmc-kicker">Done</span>Change applied.`, { klass: 'gmc-done' });
+          if (active.gated) {
+            show(active.name, `<span class="gmc-kicker">Done</span>Change applied.`, { klass: 'gmc-done' });
+            scheduleClear(700);
+          }
           say(`${humanize(active.name)} done`);
-          scheduleClear(700);
           active = undefined;
           break;
       }
