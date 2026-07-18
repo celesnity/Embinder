@@ -2,7 +2,8 @@
 // LLM config comes from the relay's /chat-config (env, beside the key) — app code
 // carries none. Unconfigured relay => a "connect a model" hint instead of a composer.
 // Session memory only (refresh clears it).
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, forwardRef } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { AssistantRuntimeProvider, AssistantModalPrimitive, ThreadPrimitive, ComposerPrimitive, MessagePrimitive } from '@assistant-ui/react';
 import { useChatRuntime, AssistantChatTransport } from '@assistant-ui/react-ai-sdk';
 import { ROBOT_HEAD } from './robot-head.js';
@@ -139,7 +140,7 @@ function injectStyle() {
 // Trigger button. asChild forwards Radix's data-state so the robot morphs to a close icon.
 const FabButton = forwardRef<
   HTMLButtonElement,
-  React.ComponentPropsWithoutRef<'button'> & { 'data-state'?: string }
+  ComponentPropsWithoutRef<'button'> & { 'data-state'?: string }
 >((props, ref) => (
   <button ref={ref} className="emb-cb-fab" aria-label="Open chat" {...props}>
     <span className="emb-cb-ico emb-cb-ico-open"><span className="emb-cb-robot" aria-hidden /></span>
@@ -159,6 +160,9 @@ function Message() {
 export function ChatBubble(cfg: ChatBubbleProps = {}) {
   const base = cfg.configBase ?? 'http://127.0.0.1:7331';
   const api = cfg.api ?? `${base}/chat`;
+
+  // Inject the emb-cb-* styles once on mount (before first paint of the FAB).
+  useEffect(() => { injectStyle(); }, []);
 
   // D-9: fetch relay-owned config unless the app explicitly overrode it.
   const [fetched, setFetched] = useState<{ baseURL: string | null; model: string | null } | null>(null);
@@ -223,19 +227,12 @@ export function ChatBubble(cfg: ChatBubbleProps = {}) {
               </ThreadPrimitive.If>
             </ThreadPrimitive.Viewport>
             {ready ? (
-              <ComposerPrimitive.Root style={{ display: 'flex', gap: 6, padding: 8, borderTop: '1px solid #2a2a2e' }}>
-                <ComposerPrimitive.Input
-                  placeholder="Ask the agent…"
-                  style={{ flex: 1, background: '#0e0e10', color: '#eaeaea', border: '1px solid #2a2a2e', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
-                />
-                <ComposerPrimitive.Send
-                  style={{ background: '#6ee7a0', color: '#04140a', border: 'none', borderRadius: 6, padding: '6px 12px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Send
-                </ComposerPrimitive.Send>
+              <ComposerPrimitive.Root className="emb-cb-composer">
+                <ComposerPrimitive.Input className="emb-cb-input" placeholder="Ask the agent…" />
+                <ComposerPrimitive.Send className="emb-cb-send">Send</ComposerPrimitive.Send>
               </ComposerPrimitive.Root>
             ) : (
-              <div style={{ padding: '10px 12px', borderTop: '1px solid #2a2a2e', fontSize: 12, color: '#9aa0a6' }}>
+              <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(90,150,255,.14)', fontSize: 12, color: '#8ea3c9' }}>
                 Connect a model: set <code>LLM_BASE_URL</code> and <code>LLM_MODEL</code> in the
                 relay&rsquo;s environment, then restart it.
               </div>
