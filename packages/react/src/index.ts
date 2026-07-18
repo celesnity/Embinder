@@ -43,3 +43,5 @@ export { AgentRadioGroup } from './components/AgentRadioGroup.js';
 export type { AgentRadioGroupProps } from './components/AgentRadioGroup.js';
 export { AgentToggle } from './components/AgentToggle.js';
 export type { AgentToggleProps } from './components/AgentToggle.js';
+export { AgentLink } from './components/AgentLink.js';
+export type { AgentLinkProps } from './components/AgentLink.js';
