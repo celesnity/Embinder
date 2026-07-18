@@ -14,6 +14,7 @@
 
 import { useEffect, useState, type ReactNode, type ReactElement } from 'react';
 import { getModelContext, type ModelContextSurface, type ToolDescriptor } from './model-context.js';
+import { installActionTools } from './actions/registerActionTools.js';
 import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no driver.js at runtime
 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
@@ -137,20 +138,36 @@ export interface EmbinderProviderProps {
 export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = false, chat }: EmbinderProviderProps) {
   ensureShim(url, token);
 
-  // T-K: load the spotlight only when the flag is on (zero driver.js cost when off).
+  // Register the built-in action tools (scroll/navigate/drag) through the relay shim.
+  useEffect(() => {
+    if (singleton) installActionTools(singleton.modelContext);
+  }, []);
+
+  // T-K: load the spotlight + ghost cursor only when the flag is on (zero driver.js /
+  // mascot-image cost when off). Both consume the same relay phase events: the spotlight
+  // highlights the target element, the ghost cursor (the AGENT's own pointer, separate from
+  // the user's real cursor) glides to it.
   useEffect(() => {
     if (!viz || !singleton) return;
     let sp: Spotlight | undefined;
+    let ghost: import('./ghost-cursor.js').GhostCursor | undefined;
     let cancelled = false;
-    import('./spotlight.js').then(({ createSpotlight }) => {
-      if (cancelled) return;
-      sp = createSpotlight(`${httpBaseFrom(url)}/approve`, httpBaseFrom(url));
-      singleton!.setPhaseListener((m) => sp!.handle(m));
-    });
+    Promise.all([import('./spotlight.js'), import('./ghost-cursor.js')]).then(
+      ([{ createSpotlight }, { createGhostCursor }]) => {
+        if (cancelled) return;
+        sp = createSpotlight(`${httpBaseFrom(url)}/approve`, httpBaseFrom(url));
+        ghost = createGhostCursor();
+        singleton!.setPhaseListener((m) => {
+          sp!.handle(m);
+          ghost!.handle(m);
+        });
+      },
+    );
     return () => {
       cancelled = true;
       singleton?.setPhaseListener(undefined);
       sp?.destroy();
+      ghost?.destroy();
     };
   }, [viz, url]);
 

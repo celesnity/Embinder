@@ -4,4 +4,6 @@ dist/
 *.log
 audit.jsonl
 .embinder/
+.env
+.env.local
 .DS_Store

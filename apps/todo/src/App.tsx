@@ -1,120 +1,95 @@
-import { useReducer, useRef, useState } from 'react';
-import { z } from 'zod';
-import { useWebMCP, grabAnchor } from '@embinder/react';
-import { reducer, initialTasks, type Task } from './store';
+import { useEffect, useReducer, useRef, useState } from 'react';
+import { LayoutGrid, BarChart3, Archive as ArchiveIcon, Settings as SettingsIcon, type LucideIcon } from 'lucide-react';
+import { grabAnchor, useScrollTarget, useRoute } from '@embinder/react';
+import { reducer, initialState, PAGES, type State, type Page } from './store';
+import { useBoardTools } from './tools';
+import { Toolbar } from './components/Toolbar';
+import { Board } from './components/Board';
+import { ListView, type SortKey } from './components/ListView';
+import { CalendarView } from './components/CalendarView';
+import { Analytics } from './components/Analytics';
+import { Archive } from './components/Archive';
+import { Settings } from './components/Settings';
 import './App.css';
 
+const NAV: { id: Page; label: string; icon: LucideIcon }[] = [
+  { id: 'board', label: 'Board', icon: LayoutGrid },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'archive', label: 'Archive', icon: ArchiveIcon },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+];
+
+const routeFromHash = (): Page => {
+  const h = window.location.hash.replace(/^#\/?/, '') as Page;
+  return PAGES.includes(h) ? h : 'board';
+};
+
 export default function App() {
-  const [tasks, dispatch] = useReducer(reducer, initialTasks);
-  const [draft, setDraft] = useState('');
+  const [state, dispatch] = useReducer(reducer, initialState, (s) => ({ ...s, route: routeFromHash() }));
+  const [sort, setSort] = useState<SortKey>('priority');
 
-  // Latest tasks in a ref so tool handlers read current state without re-registering.
-  const tasksRef = useRef<Task[]>(tasks);
-  tasksRef.current = tasks;
+  const stateRef = useRef<State>(state);
+  stateRef.current = state;
 
-  // ---- tools declared as WebMCP actions (T-B2) ------------------------------
-  useWebMCP({
-    name: 'list_tasks',
-    description: 'List all tasks with their id, text, and done status',
-    inputSchema: {},
-    annotations: { title: 'List tasks', readOnlyHint: true },
-    handler: async () => ({ tasks: tasksRef.current }),
-  });
+  useBoardTools(stateRef, dispatch);
+  const topTarget = useScrollTarget({ id: 'app-top', label: 'Top of the app' });
 
-  useWebMCP({
-    name: 'add_task',
-    description: 'Add a new task to the board',
-    inputSchema: { text: z.string().describe('Task text') },
-    annotations: { title: 'Add task' },
-    handler: async ({ text }: { text: string }) => {
-      dispatch({ type: 'ADD', text });
-      return { ok: true, added: text };
-    },
-  });
+  useRoute(
+    PAGES.map((p) => ({
+      id: p,
+      label: p[0].toUpperCase() + p.slice(1),
+      path: p,
+      destructive: p === 'board' ? false : undefined,
+    })),
+    { navigate: (path) => dispatch({ type: 'SET_ROUTE', route: path as Page }) },
+  );
 
-  useWebMCP({
-    name: 'toggle_task',
-    description: 'Toggle a task done/undone by id',
-    inputSchema: { id: z.string() },
-    annotations: { title: 'Toggle task' },
-    handler: async ({ id }: { id: string }) => {
-      dispatch({ type: 'TOGGLE', id });
-      return { ok: true, id };
-    },
-  });
-
-  useWebMCP({
-    name: 'edit_task',
-    description: 'Edit the text of a task by id',
-    inputSchema: { id: z.string(), text: z.string() },
-    annotations: { title: 'Edit task' },
-    handler: async ({ id, text }: { id: string; text: string }) => {
-      dispatch({ type: 'EDIT', id, text });
-      return { ok: true, id, text };
-    },
-  });
-
-  useWebMCP({
-    name: 'delete_task',
-    description: 'Delete a single task by id',
-    inputSchema: { id: z.string() },
-    annotations: { title: 'Delete task', destructiveHint: true },
-    handler: async ({ id }: { id: string }) => {
-      dispatch({ type: 'DELETE', id });
-      return { ok: true, id };
-    },
-  });
-
-  useWebMCP({
-    name: 'delete_all_tasks',
-    description: 'Delete every task on the board',
-    inputSchema: {},
-    annotations: { title: 'Clear board', destructiveHint: true },
-    handler: async () => {
-      const cleared = tasksRef.current.length;
-      dispatch({ type: 'CLEAR' });
-      return { ok: true, cleared };
-    },
-  });
-
-  const add = () => {
-    const text = draft.trim();
-    if (!text) return;
-    dispatch({ type: 'ADD', text });
-    setDraft('');
-  };
+  // Two-way sync route <-> URL hash (agent nav updates the address bar; back/forward works).
+  useEffect(() => {
+    if (routeFromHash() !== state.route) window.location.hash = `/${state.route}`;
+  }, [state.route]);
+  useEffect(() => {
+    const onHash = () => dispatch({ type: 'SET_ROUTE', route: routeFromHash() });
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   return (
-    <main className="board">
-      <h1>Embinder Todo</h1>
-      <p className="hint">Reference app · tools exposed via WebMCP → relay gate</p>
+    <main className="app">
+      <header id="board-top" ref={topTarget.ref} className="app-head">
+        <div>
+          <h1>Embinder Board</h1>
+          <p className="hint">
+            {state.tasks.length} tasks · {state.columns.length} columns · 4 pages · 35 tools via WebMCP → relay gate
+          </p>
+        </div>
+        <nav className="topnav" {...grabAnchor('go_to_page')}>
+          {NAV.map((n) => {
+            const Icon = n.icon;
+            return (
+              <button
+                key={n.id}
+                className={state.route === n.id ? 'nav on' : 'nav'}
+                onClick={() => dispatch({ type: 'SET_ROUTE', route: n.id })}
+              >
+                <Icon className="nav-icon" size={15} strokeWidth={2} aria-hidden /> {n.label}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
 
-      <div className="row">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
-          placeholder="New task…"
-        />
-        <button {...grabAnchor('add_task')} onClick={add}>Add</button>
-        <button className="danger" {...grabAnchor('delete_all_tasks')} onClick={() => dispatch({ type: 'CLEAR' })}>
-          Clear all
-        </button>
-      </div>
-
-      <ul className="list">
-        {tasks.map((t) => (
-          <li key={t.id} className={t.done ? 'done' : ''}>
-            <input type="checkbox" checked={t.done} onChange={() => dispatch({ type: 'TOGGLE', id: t.id })} />
-            <span>{t.text}</span>
-            <code>{t.id}</code>
-            <button className="x" {...grabAnchor('delete_task')} onClick={() => dispatch({ type: 'DELETE', id: t.id })}>
-              ✕
-            </button>
-          </li>
-        ))}
-        {tasks.length === 0 && <li className="empty">No tasks</li>}
-      </ul>
+      {state.route === 'board' && (
+        <>
+          <Toolbar state={state} dispatch={dispatch} />
+          {state.view === 'board' && <Board state={state} dispatch={dispatch} />}
+          {state.view === 'list' && <ListView state={state} dispatch={dispatch} sort={sort} onSort={setSort} />}
+          {state.view === 'calendar' && <CalendarView state={state} dispatch={dispatch} />}
+        </>
+      )}
+      {state.route === 'analytics' && <Analytics state={state} />}
+      {state.route === 'archive' && <Archive state={state} dispatch={dispatch} />}
+      {state.route === 'settings' && <Settings state={state} dispatch={dispatch} />}
     </main>
   );
 }
