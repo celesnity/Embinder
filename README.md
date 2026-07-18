@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/logo.png" alt="Embinder logo — a robot driving a car over a map toward a flagged destination" width="150" />
-</p>
 
 <p align="center">
   <img src="assets/banner.png" alt="Embinder — the agent moves into your app." width="100%" />
