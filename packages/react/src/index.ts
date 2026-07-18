@@ -14,4 +14,7 @@ export type { ToolDescriptor, ModelContextSurface } from './model-context.js';
 // Re-export the WebMCP hook so apps declare tools with one import (T-B2).
 export { useWebMCP } from '@mcp-b/react-webmcp';
 
+// Agent-driven UI action hooks (declare participants; the SDK generates the tools).
+export * from './actions/index.js';
+
 export type { ChatBubbleConfig } from './chat/ChatBubble.js';
