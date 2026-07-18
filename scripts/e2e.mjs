@@ -74,7 +74,9 @@ const board = [];
 let nextId = 1;
 
 // --- boot relay -------------------------------------------------------------
-const relay = spawn('npx', ['tsx', 'packages/relay/src/server.ts'], { stdio: ['ignore', 'pipe', 'inherit'] });
+// Launch tsx via Node's own loader (not `npx tsx`): avoids the Windows `.cmd`
+// spawn EINVAL/ENOENT and lets relay.kill() actually free port 7331 on re-runs.
+const relay = spawn(process.execPath, ['--import', 'tsx', 'packages/relay/src/server.ts'], { stdio: ['ignore', 'pipe', 'inherit'] });
 await new Promise((resolve, reject) => {
   const t = globalThis.setTimeout(() => reject(new Error('relay did not start in 10s')), 10_000);
   relay.stdout.on('data', (d) => {
