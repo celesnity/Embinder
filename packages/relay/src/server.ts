@@ -25,8 +25,9 @@ import { loadPolicy, riskOf } from './policy.js';
 import { gate, type GateCtx } from './gate.js';
 import { mintToken, tokenMatches, hostAllowed, originAllowed } from './security.js';
 import { mountApprovalRoutes } from './approval-routes.js';
-import { mountChatRoute } from './chat.js';
-import { enableCliApprovals, canonicalize } from './approval.js';
+import { mountChatRoute, mountChatConfigRoute } from './chat.js';
+import { enableCliApprovals, canonicalize, cancelByTool } from './approval.js';
+import { CapabilityRegistry, type CapabilityDef } from './registry.js';
 
 // A broken stdout pipe (parent process killed us mid-log) must not crash the relay.
 process.stdout.on('error', () => {});
@@ -35,6 +36,13 @@ process.stderr.on('error', () => {});
 const PORT = 7331;
 const HOST = '127.0.0.1';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+// Load repo-root .env (LLM_BASE_URL / LLM_MODEL / OPENAI_API_KEY|LLM_KEY) if present.
+// Existing process env wins; a missing file is fine.
+try {
+  process.loadEnvFile(resolve(ROOT, '.env'));
+} catch {
+  /* no .env — env must come from the shell */
+}
 const POLICY_PATH = resolve(ROOT, 'embinder.policy.json');
 const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);
@@ -53,9 +61,8 @@ try {
   /* non-fatal */
 }
 
-// ---- app socket (relay-owned) + pending calls -------------------------------
+// ---- app socket (relay-owned) -----------------------------------------------
 let appSocket: WebSocket | undefined;
-const pending = new Map<string, (result: unknown) => void>();
 
 // T-K2: display-only phase events relay→app (intent/gate/decided). Never on the MCP path.
 function emitToApp(type: string, payload: Record<string, unknown>): void {
@@ -70,28 +77,23 @@ function forwardToBrowser(id: string, name: string, args: unknown): Promise<Call
     if (!appSocket || appSocket.readyState !== WebSocket.OPEN) {
       return reject(new Error('app not connected'));
     }
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(`tool "${name}" timed out`));
-    }, 30_000);
-    pending.set(id, (result) => {
-      clearTimeout(timer);
-      resolvePromise({ content: [{ type: 'text', text: JSON.stringify(result) }] });
+    registry.trackCall({
+      id,
+      name,
+      args,
+      resolve: (result) =>
+        resolvePromise({ content: [{ type: 'text', text: JSON.stringify(result) }] }),
+      reject,
     });
     appSocket.send(JSON.stringify({ type: 'call', id, name, args }));
   });
 }
 
-// ---- MCP sessions + central tool registry -----------------------------------
+// ---- MCP sessions + central capability registry -----------------------------
 // An McpServer binds to ONE transport at a time (protocol.ts:609). So we build a
 // FRESH McpServer per MCP session and mirror the browser app's tools onto each.
-// The registry is the source of truth; register/unregister fan out to live sessions.
-
-interface ToolDef {
-  config: { description?: string; inputSchema?: ZodRawShape; annotations?: Record<string, unknown> };
-  destructive: boolean;
-}
-const toolRegistry = new Map<string, ToolDef>();
+// The registry is the source of truth; register/unregister fan out to live sessions,
+// with unregister deferred by the D-6 grace window (quick remounts survive).
 
 interface Session {
   server: McpServer;
@@ -99,6 +101,33 @@ interface Session {
   tools: Map<string, ReturnType<McpServer['registerTool']>>;
 }
 const sessions = new Map<string, Session>();
+
+// Context-only pointers (no handler) contribute state to the chat system block but are
+// never exposed as callable tools (D-5: fewer tools is the thesis).
+export function isContextOnly(def: CapabilityDef): boolean {
+  return Boolean(def.config.annotations?.embinderContextOnly);
+}
+
+const registry = new CapabilityRegistry({
+  onAdd: (name, def) => {
+    if (isContextOnly(def)) return;
+    for (const s of sessions.values()) registerGatedTool(s.server, s.tools, name, def);
+  },
+  onRemove: (name) => {
+    cancelByTool(name); // pending approvals for an off-screen capability are moot
+    for (const s of sessions.values()) {
+      s.tools.get(name)?.remove();
+      s.tools.delete(name);
+    }
+    console.log(`[embinder] capability left the screen: ${name}`);
+  },
+  // A remount within the grace window re-delivers calls the old mount never answered.
+  onResend: (id, name, args) => {
+    if (appSocket?.readyState === WebSocket.OPEN) {
+      appSocket.send(JSON.stringify({ type: 'call', id, name, args }));
+    }
+  },
+});
 
 // Shared gate+forward pipeline. Used by BOTH the MCP tool handler and the /chat route,
 // so a bubble-driven agent and an external MCP agent travel the identical gate (one gate).
@@ -139,7 +168,7 @@ function registerGatedTool(
   server: McpServer,
   tools: Session['tools'],
   name: string,
-  def: ToolDef,
+  def: CapabilityDef,
 ) {
   if (tools.has(name)) tools.get(name)!.remove();
   const tool = server.registerTool(name, def.config, async (args: unknown, extra) => {
@@ -173,7 +202,9 @@ function buildSessionServer(): { server: McpServer; tools: Session['tools'] } {
     content: [{ type: 'text', text: 'ready' }],
   }));
   primer.disable();
-  for (const [name, def] of toolRegistry) registerGatedTool(server, tools, name, def);
+  for (const [name, def] of registry.entries()) {
+    if (!isContextOnly(def)) registerGatedTool(server, tools, name, def);
+  }
   return { server, tools };
 }
 
@@ -235,7 +266,9 @@ app.get('/approver-token', (req: Request, res: Response) => {
 // T-E1/E2: approval surface (out-of-tab).
 mountApprovalRoutes(app, APPROVER_TOKEN);
 // T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
-mountChatRoute(app, { toolRegistry, runGatedCall });
+mountChatRoute(app, { registry, runGatedCall });
+// D-9: bubble config lives in relay env, beside the key.
+mountChatConfigRoute(app, { baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL });
 enableCliApprovals();
 
 const httpServer = app.listen(PORT, HOST, () => {
@@ -260,7 +293,7 @@ wss.on('connection', (ws, req) => {
     const m = JSON.parse(String(buf));
     switch (m.type) {
       case 'register': {
-        const def: ToolDef = {
+        const def: CapabilityDef = {
           config: {
             description: m.tool.description,
             inputSchema: toZodShape(m.tool.inputSchema),
@@ -268,22 +301,18 @@ wss.on('connection', (ws, req) => {
           },
           destructive: Boolean(m.tool.annotations?.destructiveHint),
         };
-        toolRegistry.set(m.tool.name, def);
-        for (const s of sessions.values()) registerGatedTool(s.server, s.tools, m.tool.name, def);
-        console.log(`[embinder] tool registered: ${m.tool.name}`);
+        registry.register(m.tool.name, def);
+        console.log(`[embinder] capability registered: ${m.tool.name}`);
         break;
       }
       case 'unregister':
-        toolRegistry.delete(m.name);
-        for (const s of sessions.values()) {
-          s.tools.get(m.name)?.remove();
-          s.tools.delete(m.name);
-        }
-        console.log(`[embinder] tool unregistered: ${m.name}`);
+        registry.unregister(m.name); // D-6: session removal happens on grace expiry
+        break;
+      case 'context':
+        registry.setContext(m.name, m.state); // app-socket only: we're inside the authed ws
         break;
       case 'result':
-        pending.get(m.id)?.(m.error ? { error: m.error } : m.result);
-        pending.delete(m.id);
+        registry.settle(m.id, m.error ? { error: m.error } : m.result);
         break;
     }
   });

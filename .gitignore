@@ -5,3 +5,4 @@ dist/
 audit.jsonl
 .embinder/
 .DS_Store
+.env

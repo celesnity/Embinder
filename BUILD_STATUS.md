@@ -1,11 +1,24 @@
 # Embinder — Build Status Report
 
-_A map for agents to drive your app: WebMCP-native SDK · server-side policy gate · live action spotlight._
+_The agent moves into your app: one-hook pointer SDK · render-scoped agent context · server-side policy gate._
 _(Working names during development: Minder / Warden. Repo: `celesnity/Embinder`.)_
 
-Progress against **`MINDER_BUILD_GUIDE.md`** + **`MINDER_SPOTLIGHT_GUIDE.md`**, verified against the upstream source cloned into `.references/`.
+**Status:** `embinder-pointer` feature complete on top of D1–D7 — `npm run e2e` passes **36 assertions** green. The repo's identity shifted with it (see `docs/ai/requirements/2026-07-18-feature-embinder-pointer.md`): the resident agent (bubble + embedded runtime) is the product; `/mcp` is an optional separated-agent path.
 
-**Status:** D1–D7 complete · **Gate + approval + spotlight GREEN** — `npm run e2e` passes 17 assertions covering AC-1→AC-6 (AC-7 manual); AC-8 spotlight built & feature-flagged. Remaining: D8–D10 (model bake-off, rehearsal, ship) — see `docs/DEMO.md`.
+## embinder-pointer (2026-07-18)
+
+| Piece | Status | Evidence |
+|---|---|---|
+| `useEmbinder` pointer (declare + anchor + lifecycle in one hook) | ✅ | `packages/react/src/use-embinder.ts` · 9 unit tests |
+| Render-scoped context (mount/unmount → register/unregister, live fan-out) | ✅ | e2e "SC-2 after navigation the agent sees ONLY the Archive set" |
+| Bound state (`context()` → debounced ws `context` msg → "On-screen now" system block) | ✅ | e2e SC-3 assertions; `packages/relay/src/chat.ts` |
+| Grace semantics (~2 s: remount re-delivers, expiry rejects + cancels approvals) | ✅ | `packages/relay/src/registry.ts` · e2e SC-4 assertions |
+| Resident bubble default-on, config from relay env via `/chat-config` (D-9) | ✅ | `packages/react/src/chat/ChatBubble.tsx` · e2e D-9 assertion |
+| Two-page demo (Board ⇄ Archive), zero `list_*` tools | ✅ | `apps/todo/src/App.tsx` |
+| MCP demoted to optional separated-agent path | ✅ | README framing; `/mcp` still e2e-covered |
+| Unit test infra (vitest: react jsdom + relay node) | ✅ | `npm test` — 19 unit tests across packages |
+
+_Earlier D1–D7 history (gate, approval, spotlight, hardening) below._
 
 _Last updated: 2026-07-18_
 

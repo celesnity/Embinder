@@ -1,10 +1,10 @@
 // EmbinderProvider (T-B1) — installs a document.modelContext shim backed by the relay ws.
-// Tools registered via useWebMCP flow straight through this shim into the server-side gate.
+// Capabilities registered via useEmbinder flow straight through this shim into the gate.
 //
 // Deliberate correctness:
 //  1. The shim is installed during PROVIDER RENDER, not in an effect. React runs child effects
 //     before parent effects, so a useEffect here would install document.modelContext AFTER the
-//     child's useWebMCP already read it — tools would never register.
+//     child's useEmbinder already read it — capabilities would never register.
 //  2. The ws + shim are a MODULE-SCOPE SINGLETON, so React StrictMode's mount→unmount→mount
 //     can't close the socket and leave it dead. The socket lives for the page lifetime.
 //  3. Registrations buffer in an outbox until the socket opens (token is fetched async, T-G1).
@@ -22,8 +22,14 @@ const PHASE_TYPES = new Set(['intent', 'gate', 'decided']);
 interface Shim {
   modelContext: ModelContextSurface;
   setPhaseListener(fn: ((m: PhaseMessage) => void) | undefined): void;
+  sendContext(name: string, state: unknown): void;
 }
 let singleton: Shim | undefined;
+
+// Internal: bound-state snapshots from useEmbinder ride the same socket (D-4).
+export function sendEmbinderContext(name: string, state: unknown): void {
+  singleton?.sendContext(name, state);
+}
 
 function stripDescriptor(d: ToolDescriptor) {
   return {
@@ -108,6 +114,9 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     setPhaseListener(fn) {
       phaseListener = fn;
     },
+    sendContext(name, state) {
+      send({ type: 'context', name, state });
+    },
   };
 }
 
@@ -130,8 +139,12 @@ export interface EmbinderProviderProps {
   token?: string;
   /** T-K: enable the agent-action spotlight + gate visualization (D7 polish, off by default). */
   viz?: boolean;
-  /** T-CB4: mount the in-app chat bubble (optional, dynamic-imported → zero cost when absent). */
-  chat?: import('./chat/ChatBubble.js').ChatBubbleConfig;
+  /**
+   * The resident agent bubble. Mounted by DEFAULT (D-9) — config comes from the relay's
+   * /chat-config (env). Pass a config object to override, or `false` to opt out
+   * (opt-out keeps the bubble code out of the bundle entirely).
+   */
+  chat?: import('./chat/ChatBubble.js').ChatBubbleConfig | false;
 }
 
 export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = false, chat }: EmbinderProviderProps) {
@@ -154,13 +167,13 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
     };
   }, [viz, url]);
 
-  // T-CB4: dynamic-import the chat bubble only when the `chat` prop is provided.
-  const [Bubble, setBubble] = useState<null | ((c: unknown) => ReactElement)>(null);
+  // D-9: the resident bubble is the default — dynamic-imported unless explicitly opted out.
+  const [Bubble, setBubble] = useState<null | ((c: Record<string, unknown>) => ReactElement)>(null);
   useEffect(() => {
-    if (!chat) return;
+    if (chat === false) return;
     let cancelled = false;
     import('./chat/ChatBubble.js').then(({ ChatBubble }) => {
-      if (!cancelled) setBubble(() => ChatBubble as (c: unknown) => ReactElement);
+      if (!cancelled) setBubble(() => ChatBubble as unknown as (c: Record<string, unknown>) => ReactElement);
     });
     return () => {
       cancelled = true;
@@ -170,7 +183,7 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
   return (
     <>
       {children}
-      {Bubble ? <Bubble {...(chat as object)} /> : null}
+      {Bubble && chat !== false ? <Bubble {...((chat || {}) as object)} configBase={httpBaseFrom(url)} /> : null}
     </>
   );
 }

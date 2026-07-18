@@ -3,12 +3,15 @@
   "unknownTool": "destructive",
   "tools": {
     "__gmc_ready": "read",
-    "list_tasks": "read",
+    "task_board": "read",
+    "archive_list": "read",
     "add_task": "write",
     "toggle_task": "write",
     "edit_task": "write",
+    "restore_task": "write",
     "delete_task": "destructive",
-    "delete_all_tasks": "destructive"
+    "delete_all_tasks": "destructive",
+    "purge_archive": "destructive"
   },
   "rateLimit": {
     "perToolPerMin": 30

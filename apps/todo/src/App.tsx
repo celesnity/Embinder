@@ -1,75 +1,77 @@
-import { useReducer, useRef, useState } from 'react';
+import { useReducer, useRef, useState, type Dispatch } from 'react';
 import { z } from 'zod';
-import { useWebMCP, grabAnchor } from '@embinder/react';
-import { reducer, initialTasks, type Task } from './store';
+import { useEmbinder } from '@embinder/react';
+import { reducer, initialTasks, type Task, type Action } from './store';
 import './App.css';
 
-export default function App() {
-  const [tasks, dispatch] = useReducer(reducer, initialTasks);
-  const [draft, setDraft] = useState('');
+// Two pages, one store. Each page mounts its own embinder pointers, so the agent's
+// context follows the screen the user is on — navigate and watch it switch.
+// Navigation itself is deliberately NOT a pointer in v1 (design non-goal D-8).
 
-  // Latest tasks in a ref so tool handlers read current state without re-registering.
+function BoardPage({ tasks, dispatch }: { tasks: Task[]; dispatch: Dispatch<Action> }) {
+  const [draft, setDraft] = useState('');
+  const open = tasks.filter((t) => !t.done);
+
   const tasksRef = useRef<Task[]>(tasks);
   tasksRef.current = tasks;
 
-  // ---- tools declared as WebMCP actions (T-B2) ------------------------------
-  useWebMCP({
-    name: 'list_tasks',
-    description: 'List all tasks with their id, text, and done status',
-    inputSchema: {},
-    annotations: { title: 'List tasks', readOnlyHint: true },
-    handler: async () => ({ tasks: tasksRef.current }),
+  // Context-only pointer: the agent reads the board like the user does — no list_* tool.
+  const boardBind = useEmbinder({
+    name: 'task_board',
+    description: 'The task board the user is looking at (open tasks)',
+    context: () => ({ openTasks: open }),
   });
 
-  useWebMCP({
+  const addBind = useEmbinder({
     name: 'add_task',
     description: 'Add a new task to the board',
-    inputSchema: { text: z.string().describe('Task text') },
-    annotations: { title: 'Add task' },
+    title: 'Add task',
+    input: { text: z.string().describe('Task text') },
     handler: async ({ text }: { text: string }) => {
       dispatch({ type: 'ADD', text });
       return { ok: true, added: text };
     },
   });
 
-  useWebMCP({
+  useEmbinder({
     name: 'toggle_task',
     description: 'Toggle a task done/undone by id',
-    inputSchema: { id: z.string() },
-    annotations: { title: 'Toggle task' },
+    title: 'Toggle task',
+    input: { id: z.string() },
     handler: async ({ id }: { id: string }) => {
       dispatch({ type: 'TOGGLE', id });
       return { ok: true, id };
     },
   });
 
-  useWebMCP({
+  useEmbinder({
     name: 'edit_task',
     description: 'Edit the text of a task by id',
-    inputSchema: { id: z.string(), text: z.string() },
-    annotations: { title: 'Edit task' },
+    title: 'Edit task',
+    input: { id: z.string(), text: z.string() },
     handler: async ({ id, text }: { id: string; text: string }) => {
       dispatch({ type: 'EDIT', id, text });
       return { ok: true, id, text };
     },
   });
 
-  useWebMCP({
+  const deleteBind = useEmbinder({
     name: 'delete_task',
     description: 'Delete a single task by id',
-    inputSchema: { id: z.string() },
-    annotations: { title: 'Delete task', destructiveHint: true },
+    title: 'Delete task',
+    destructive: true,
+    input: { id: z.string() },
     handler: async ({ id }: { id: string }) => {
       dispatch({ type: 'DELETE', id });
       return { ok: true, id };
     },
   });
 
-  useWebMCP({
+  const clearBind = useEmbinder({
     name: 'delete_all_tasks',
     description: 'Delete every task on the board',
-    inputSchema: {},
-    annotations: { title: 'Clear board', destructiveHint: true },
+    title: 'Clear board',
+    destructive: true,
     handler: async () => {
       const cleared = tasksRef.current.length;
       dispatch({ type: 'CLEAR' });
@@ -85,10 +87,7 @@ export default function App() {
   };
 
   return (
-    <main className="board">
-      <h1>Embinder Todo</h1>
-      <p className="hint">Reference app · tools exposed via WebMCP → relay gate</p>
-
+    <section {...boardBind}>
       <div className="row">
         <input
           value={draft}
@@ -96,25 +95,109 @@ export default function App() {
           onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="New task…"
         />
-        <button {...grabAnchor('add_task')} onClick={add}>Add</button>
-        <button className="danger" {...grabAnchor('delete_all_tasks')} onClick={() => dispatch({ type: 'CLEAR' })}>
+        <button {...addBind} onClick={add}>Add</button>
+        <button className="danger" {...clearBind} onClick={() => dispatch({ type: 'CLEAR' })}>
           Clear all
         </button>
       </div>
 
       <ul className="list">
-        {tasks.map((t) => (
-          <li key={t.id} className={t.done ? 'done' : ''}>
+        {open.map((t) => (
+          <li key={t.id}>
             <input type="checkbox" checked={t.done} onChange={() => dispatch({ type: 'TOGGLE', id: t.id })} />
             <span>{t.text}</span>
             <code>{t.id}</code>
-            <button className="x" {...grabAnchor('delete_task')} onClick={() => dispatch({ type: 'DELETE', id: t.id })}>
+            <button className="x" {...deleteBind} onClick={() => dispatch({ type: 'DELETE', id: t.id })}>
               ✕
             </button>
           </li>
         ))}
-        {tasks.length === 0 && <li className="empty">No tasks</li>}
+        {open.length === 0 && <li className="empty">No open tasks</li>}
       </ul>
+    </section>
+  );
+}
+
+function ArchivePage({ tasks, dispatch }: { tasks: Task[]; dispatch: Dispatch<Action> }) {
+  const done = tasks.filter((t) => t.done);
+
+  const archiveBind = useEmbinder({
+    name: 'archive_list',
+    description: 'The archive of completed tasks the user is looking at',
+    context: () => ({ doneTasks: done }),
+  });
+
+  const restoreBind = useEmbinder({
+    name: 'restore_task',
+    description: 'Restore a completed task back to the board by id',
+    title: 'Restore task',
+    input: { id: z.string() },
+    handler: async ({ id }: { id: string }) => {
+      dispatch({ type: 'TOGGLE', id });
+      return { ok: true, restored: id };
+    },
+  });
+
+  const purgeBind = useEmbinder({
+    name: 'purge_archive',
+    description: 'Permanently delete every completed task',
+    title: 'Purge archive',
+    destructive: true,
+    handler: async () => {
+      const purged = done.length;
+      dispatch({ type: 'PURGE_DONE' });
+      return { ok: true, purged };
+    },
+  });
+
+  return (
+    <section {...archiveBind}>
+      <div className="row">
+        <button className="danger" {...purgeBind} onClick={() => dispatch({ type: 'PURGE_DONE' })}>
+          Purge archive
+        </button>
+      </div>
+      <ul className="list">
+        {done.map((t) => (
+          <li key={t.id} className="done">
+            <span>{t.text}</span>
+            <code>{t.id}</code>
+            <button className="x" {...restoreBind} onClick={() => dispatch({ type: 'TOGGLE', id: t.id })}>
+              ↩
+            </button>
+          </li>
+        ))}
+        {done.length === 0 && <li className="empty">Archive is empty</li>}
+      </ul>
+    </section>
+  );
+}
+
+export default function App() {
+  const [tasks, dispatch] = useReducer(reducer, initialTasks);
+  const [page, setPage] = useState<'board' | 'archive'>('board');
+
+  return (
+    <main className="board">
+      <h1>Embinder Todo</h1>
+      <p className="hint">
+        The agent only knows the page you're on — its context switches when you navigate.
+      </p>
+
+      <nav className="row">
+        <button disabled={page === 'board'} onClick={() => setPage('board')}>
+          Board
+        </button>
+        <button disabled={page === 'archive'} onClick={() => setPage('archive')}>
+          Archive
+        </button>
+      </nav>
+
+      {page === 'board' ? (
+        <BoardPage tasks={tasks} dispatch={dispatch} />
+      ) : (
+        <ArchivePage tasks={tasks} dispatch={dispatch} />
+      )}
     </main>
   );
 }
