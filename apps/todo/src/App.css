@@ -1,0 +1,27 @@
+.board {
+  max-width: 640px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+  font-family: system-ui, sans-serif;
+}
+.board h1 { margin-bottom: 0.25rem; }
+.hint { color: #888; margin-top: 0; font-size: 0.9rem; }
+
+.row { display: flex; gap: 0.5rem; margin: 1rem 0; }
+.row input { flex: 1; padding: 0.5rem; }
+.row button, .x { cursor: pointer; padding: 0.5rem 0.75rem; }
+.danger { color: #b00; }
+
+.list { list-style: none; padding: 0; }
+.list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+.list li.done span { text-decoration: line-through; color: #999; }
+.list li span { flex: 1; }
+.list li code { font-size: 0.7rem; color: #aaa; }
+.list li .x { border: none; background: none; color: #b00; }
+.empty { color: #aaa; justify-content: center; }

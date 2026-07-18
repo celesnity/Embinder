@@ -1,0 +1,15 @@
+{
+  "$comment": "Authoritative per-tool risk policy. Wins over first-party destructiveHint. Unknown tools deny-by-default.",
+  "unknownTool": "destructive",
+  "tools": {
+    "__minder_ready": "read",
+    "add_task": "write",
+    "toggle_task": "write",
+    "edit_task": "write",
+    "delete_task": "destructive",
+    "delete_all_tasks": "destructive"
+  },
+  "rateLimit": {
+    "perToolPerMin": 30
+  }
+}

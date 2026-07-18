@@ -1,0 +1,20 @@
+{
+  "name": "warden",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minder (Warden) — WebMCP-native relay with a server-side policy gate",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "relay": "npm run dev -w @minder/relay",
+    "todo": "npm run dev -w todo",
+    "e2e": "node scripts/e2e.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
