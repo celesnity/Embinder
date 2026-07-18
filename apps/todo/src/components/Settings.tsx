@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { grabAnchor } from '@embinder/react';
+import { grabAnchor, AgentButton } from '@embinder/react';
 import { type Action, type State } from '../store';
 
 export function Settings({ state, dispatch }: { state: State; dispatch: (a: Action) => void }) {
@@ -73,9 +73,19 @@ export function Settings({ state, dispatch }: { state: State; dispatch: (a: Acti
           <button className="chip warn" {...grabAnchor('clear_completed')} onClick={() => dispatch({ type: 'CLEAR_COMPLETED' })}>
             Clear completed tasks
           </button>
-          <button className="chip warn" {...grabAnchor('archive_done')} onClick={() => dispatch({ type: 'ARCHIVE_DONE' })}>
+          {/* Agent-aware button: Settings-only singleton, so it owns the archive_done tool
+              directly (declare + anchor + drive in one). Shared actions like clear_completed /
+              delete_all_tasks stay grabAnchor — they're also on the board Toolbar, so a
+              page-scoped component would hide them from the board. */}
+          <AgentButton
+            name="archive_done"
+            description="Archive all completed tasks (hides them; reversible via undo)."
+            destructive
+            className="chip warn"
+            onClick={() => dispatch({ type: 'ARCHIVE_DONE' })}
+          >
             Archive done tasks
-          </button>
+          </AgentButton>
           <button className="chip danger" {...grabAnchor('delete_all_tasks')} onClick={() => dispatch({ type: 'DELETE_ALL' })}>
             Delete ALL tasks
           </button>

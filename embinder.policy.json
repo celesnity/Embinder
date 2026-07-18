@@ -30,6 +30,7 @@
     "rename_column": "write",
     "set_view": "write",
     "set_filter": "write",
+    "set_search": "write",
     "clear_filter": "write",
     "go_to_page": "write",
     "scroll_to": "write",
