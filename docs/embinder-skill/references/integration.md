@@ -167,13 +167,10 @@ Relay-side env:
 ## 7. See it, and gate it
 
 - **Spotlight (in-tab):** with `viz`, the driven element highlights on `intent`, **locks** while
-  awaiting approval, and shows approved/denied/running/done. Display-only.
-- **Approve (out-of-tab):** open `http://127.0.0.1:7331/approve` in a *separate* surface (not the
-  agent-driven tab). It streams pending destructive calls over SSE and shows canonical vs raw
-  bytes with tampering flagged. Approve/deny there. The agent's tab can't reach this — that's the
-  point.
-- **Inline approval (opt-in):** set `GMC_INLINE_APPROVAL=1` on the relay to expose approve/deny
-  buttons inside the app tab (exposes `/approver-token`). Off by default.
+  awaiting approval, and shows inline **Approve/Deny buttons** in a popover. Display-only highlight.
+- **Inline approval (on screen):** destructive calls pause and show inline Approve/Deny buttons in
+  the app tab. The approver sees the exact canonical bytes (hidden / zero-width Unicode stripped).
+  This is the default and only path — the agent cannot reach the approver token.
 - **Audit:** every call lands in `audit.jsonl` (`ts, session, tool, argsRaw, argsCanonical,
   decision, approver, latencyMs`).
 
@@ -211,6 +208,6 @@ that bites React devs going direct-wire:
 - `npm run e2e` → 17/17 PASS ("E2E + GATE GREEN") — the full wire protocol + gate + security +
   chat, headless.
 - `npm run dev`, then in the app tab open the chat bubble or connect an MCP client; trigger a
-  `write` (executes immediately) and a `destructive` action (pauses); approve it at
-  `http://127.0.0.1:7331/approve`; confirm the row appears in `audit.jsonl`.
+  `write` (executes immediately) and a `destructive` action (pauses); click Approve or Deny in
+  the app tab; confirm the row appears in `audit.jsonl`.
 - Or run the whole baseline at once: `.\init.ps1`.

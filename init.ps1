@@ -34,7 +34,7 @@ Write-Host ""
 Write-Host "[init] start command:" -ForegroundColor Cyan
 Write-Host "         $START_CMD"
 Write-Host "         app:       http://localhost:5173"
-Write-Host "         approvals: http://127.0.0.1:7331/approve   (keep on a 2nd window)"
+Write-Host "         approvals: on-screen in the app tab (Approve/Deny inline buttons)"
 
 if ($env:RUN_START_COMMAND -eq '1') {
   Write-Host "[init] RUN_START_COMMAND=1 -> launching start command" -ForegroundColor Cyan

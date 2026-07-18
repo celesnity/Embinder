@@ -37,13 +37,13 @@ Everything runs on a single loopback port, `127.0.0.1:7331`:
 
 ```
 Agent ──http /mcp──▶  @embinder/relay  ──ws /app──▶  Your app (@embinder/react)
-                          policy gate ──▶ approval surface  /approve  (out-of-tab)
+                          policy gate ──▶ inline Approve/Deny (in-app, on screen)
                           /chat (bubble) · audit.jsonl · rate limit · token + origin allowlist
 ```
 
 - `POST/GET/DELETE /mcp` — the agent (any MCP client) connects here.
 - `ws://…/app` — the website's browser tab attaches here.
-- `GET /approve` + `POST /api/decide` — the out-of-tab human approval surface.
+- `POST /api/decide` — the human approval decision (token-gated, sent from the app tab).
 - `POST /chat` — the optional in-app chat bubble's LLM loop (routes through the same gate).
 
 ## The key that makes it click

@@ -20,6 +20,15 @@ The progress log. Every session reads this first and updates it last.
 
 ## Session Record
 
+### 2026-07-19 - Remove out-of-tab /approve; agent components; ghost-cursor tuning
+
+- **Agent components** shipped in `@embinder/react` (AgentButton/Input/Select/Div/Checkbox/RadioGroup/Toggle/Link + `createAgentElement` factory + dispatch helpers). react suite 33/33, typecheck 0. Wired AgentButton (undo, mark_all_done) + AgentInput (set_search) into apps/todo Toolbar; added `set_search: write` to policy.
+- **e2e baseline greened** on Node 26: SC-6 tamper test repointed to `bulk_delete` (delete_task is policy `write`); `restore_task` declared `write` (was deny-by-default destructive, hung SC-4 re-delivery). e2e 36/36 GREEN, re-runnable.
+- **Ghost cursor:** `resolveEl` now picks the largest visible on-screen element among multiple same-tool anchors (accuracy); `glideTo` duration now distance-proportional (feel). Hotspot HOTX/HOTY left as the manual calibration lever. Visual-only - live look still owed (F-D8).
+- **Removed the out-of-tab /approve page (PRODUCT DECISION, user-confirmed).** Inline on-screen Approve/Deny is now the ONLY path. `/approver-token` always serves the token; `approval-routes.ts` drops `/approve` + `renderPage`; `spotlight.ts createSpotlight(decideBase)` drops the approveUrl fallback link; provider updated. This DROPS anti-self-approve (AC-4) - the agent-driven tab now holds the approver token. The token CHECK on /api/decide remains (wrong token -> 403). See F-SEC notes.
+- **Verification:** `npm run typecheck` exit 0; `npm run e2e` -> 36/36 PASS, 'E2E + GATE GREEN', exit 0 (assertion inverted: `/approver-token serves the token -> 200`).
+- **Uncommitted** on `main`: agent-component todo integration, ghost-cursor tuning, and the /approve removal are all in the working tree (not yet committed).
+
 ### 2026-07-18 (b) - Rename to Embinder + sync with main
 
 - **Goal:** Rename the project folder to the new name and sync with `origin/main`.
