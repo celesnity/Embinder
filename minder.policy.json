@@ -3,6 +3,7 @@
   "unknownTool": "destructive",
   "tools": {
     "__minder_ready": "read",
+    "list_tasks": "read",
     "add_task": "write",
     "toggle_task": "write",
     "edit_task": "write",

@@ -2,9 +2,9 @@
 
 Progress against **`MINDER_BUILD_GUIDE.md`**, verified against the upstream source cloned into `.references/`.
 
-**Status:** Backbone (D1–D3) complete · **E2E tool-call round-trip GREEN** (`npm run e2e`) · at the doorstep of D4 (the gate).
+**Status:** D1–D7 complete · **Gate + approval + hardening GREEN** — `npm run e2e` passes 17 assertions covering AC-1→AC-6 (AC-7 manual). Remaining: D8–D10 (model bake-off, rehearsal, ship) — see `docs/DEMO.md`.
 
-_Last updated: 2026-07-17_
+_Last updated: 2026-07-18_
 
 ---
 
@@ -58,17 +58,17 @@ Legend: ✅ done · 🟡 wired/partial · ⬜ not started
 | **T-C1** McpServer + dynamic register/unregister | ✅ | `server.ts` `registerGatedTool`, `__minder_ready` primer before `connect()` |
 | **T-C2** Bridge tools/call → app → result | ✅ | `server.ts` `forwardToBrowser` (30s timeout, pending map) |
 | **T-C3** Streamable HTTP (+ stdio) transport | ✅ | POST/GET/DELETE `/mcp`, `--stdio` — **per-session McpServer** (multi-client safe; fixed LM Studio "Already connected" crash) |
-| **T-D1** Gate injection point (wrap handler) | 🟡 | `gate()` runs inside handler, after validation, before forward |
-| **T-D2** Pause / resume | 🟡 | read/write pass through; destructive throws pending approval surface |
-| **T-E1** Approval page (out-of-tab) | ⬜ | next up |
-| **T-E2** Approval-view fidelity (Unicode strip) | 🟡 | `approval.ts` `canonicalize()`/`stripInvisible()` implemented; not shown in UI yet |
-| **T-F1** Audit log append-only | 🟡 | `audit.ts` writer implemented; fields not threaded through gate |
-| **T-F2** Rate limit | ⬜ | — |
-| **T-G1** One-time token + tab⇄session bind | 🟡 | `security.ts` mint + constant-time compare; not enforced on routes |
-| **T-G2** Loopback + Origin/Host allowlist | 🟡 | allowlists defined; DNS-rebinding options not yet set on transport |
-| **T-H1** WebMCP-native feature-detect path | ⬜ | bonus |
-| **T-I1** LM Studio wiring | ⬜ | — |
-| **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`); live Inspector = smoke check |
+| **T-D1** Gate injection point (wrap handler) | ✅ | `gate()` in handler, after validation, returns canonical args to forward |
+| **T-D2** Pause / resume | ✅ | destructive → pending → approve runs / deny → agent isError; abort rejects |
+| **T-E1** Approval page (out-of-tab) | ✅ | `/approve` SSE page + `/api/pending` + `/api/decide`; CLI `[a]/[d]` fallback |
+| **T-E2** Approval-view fidelity (Unicode strip) | ✅ | raw vs canonical shown, tamper flagged red, **canonical bytes execute** |
+| **T-F1** Audit log append-only | ✅ | `audit.jsonl` intent+outcome per gated call (approver, latency) |
+| **T-F2** Rate limit | ✅ | `session:tool`/60s vs `policy.rateLimit.perToolPerMin` → deny |
+| **T-G1** One-time token + tab⇄session bind | ✅ | ws `/app` token-gated; app fetches via `/app-token`; separate approver-token |
+| **T-G2** Loopback + Origin/Host allowlist | ✅ | Host/Origin middleware; `listen('127.0.0.1')` |
+| **T-H1** WebMCP-native feature-detect path | ✅ | provider captures native surface, mirrors registrations (degrades to relay) |
+| **T-I1** LM Studio wiring | ✅ | `mcp.json` committed; setup in `docs/DEMO.md` |
+| **T-I2** MCP Inspector fallback | ✅ | deterministic client round-trip proven & scripted (`npm run e2e`) |
 
 ---
 

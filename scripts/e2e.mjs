@@ -1,27 +1,27 @@
-// One-command E2E: proves the tool-call round-trip through the relay bridge.
-// Spawns the relay, plays a fake browser app (ws /app) + a real MCP client (/mcp),
-// asserts: tools/list has the tool, agent gets {ok:true}, and the app state mutated.
-//
+// One-command E2E: proves the full pipeline through the relay + the policy gate.
 //   npm run e2e
-//
-// This is the real D3 milestone (Inspector -> add_task -> app changes -> result),
-// run headlessly so it can gate every future change to the bridge.
+// Spawns the relay, plays a fake browser app (ws /app) + a real MCP client (/mcp), and drives
+// the approval surface headlessly. Covers AC-1..AC-6 + the LM Studio multi-session regression.
 
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-const RELAY = 'http://127.0.0.1:7331/mcp';
-const APP_WS = 'ws://127.0.0.1:7331/app';
+const BASE = 'http://127.0.0.1:7331';
+const MCP = `${BASE}/mcp`;
 
-const board = []; // in-memory "browser" state the tool mutates
 let failures = 0;
 const assert = (cond, msg) => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${msg}`);
   if (!cond) failures++;
 };
+
+// fake browser app state
+const board = [];
+let nextId = 1;
 
 // --- boot relay -------------------------------------------------------------
 const relay = spawn('npx', ['tsx', 'packages/relay/src/server.ts'], { stdio: ['ignore', 'pipe', 'inherit'] });
@@ -32,54 +32,124 @@ await new Promise((resolve, reject) => {
   });
 });
 
+const { appToken, approverToken } = JSON.parse(readFileSync('.minder/session.json', 'utf8'));
+
+// Read the first pending approval from the SSE stream.
+async function firstPending() {
+  const res = await fetch(`${BASE}/api/pending`);
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const chunks = buf.split('\n\n');
+    buf = chunks.pop();
+    for (const ev of chunks) {
+      const line = ev.split('\n').find((l) => l.startsWith('data: '));
+      if (!line) continue;
+      const m = JSON.parse(line.slice(6));
+      if (m.type === 'init' && m.pending.length) { await reader.cancel(); return m.pending[0]; }
+      if (m.type === 'add') { await reader.cancel(); return m.pending; }
+    }
+  }
+  await reader.cancel();
+  return null;
+}
+
+const decide = (id, approve, token = approverToken) =>
+  fetch(`${BASE}/api/decide`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-approver-token': token },
+    body: JSON.stringify({ id, approve }),
+  });
+
 let ws, client, client2;
 try {
-  // --- fake browser app: register tool + handle calls ----------------------
-  ws = new WebSocket(APP_WS);
+  // --- fake browser app (token-authenticated ws) ---------------------------
+  ws = new WebSocket(`ws://127.0.0.1:7331/app?token=${encodeURIComponent(appToken)}`);
   await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej); });
-  ws.on('error', () => {}); // swallow teardown EPIPE when the relay is killed
+  ws.on('error', () => {});
   ws.on('message', (buf) => {
     const m = JSON.parse(String(buf));
-    if (m.type === 'call' && m.name === 'add_task') {
-      board.push(m.args.text);
-      ws.send(JSON.stringify({ type: 'result', id: m.id, result: { ok: true, added: m.args.text } }));
-    }
+    if (m.type !== 'call') return;
+    let result;
+    if (m.name === 'list_tasks') result = { tasks: board };
+    else if (m.name === 'add_task') { const t = { id: `t${nextId++}`, text: m.args.text }; board.push(t); result = { ok: true, added: t }; }
+    else if (m.name === 'delete_all_tasks') { const n = board.length; board.length = 0; result = { ok: true, cleared: n }; }
+    else if (m.name === 'delete_task') { const i = board.findIndex((t) => t.id === m.args.id); if (i >= 0) board.splice(i, 1); result = { ok: true }; }
+    else result = { ok: false };
+    ws.send(JSON.stringify({ type: 'result', id: m.id, result }));
   });
-  ws.send(JSON.stringify({
-    type: 'register',
-    tool: {
-      name: 'add_task',
-      description: 'Add a new task to the board',
-      inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-      annotations: { title: 'Add task' },
-    },
-  }));
-  await sleep(200); // let the relay registerGatedTool before we list
+  const reg = (name, schema, annotations) =>
+    ws.send(JSON.stringify({ type: 'register', tool: { name, description: name, inputSchema: schema, annotations } }));
+  reg('list_tasks', { type: 'object', properties: {} }, { readOnlyHint: true });
+  reg('add_task', { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, {});
+  reg('delete_task', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
+  reg('delete_all_tasks', { type: 'object', properties: {} }, { destructiveHint: true });
+  await sleep(250);
 
-  // --- real MCP client ------------------------------------------------------
+  // --- session 1 ------------------------------------------------------------
   client = new Client({ name: 'e2e-probe', version: '0.0.1' });
-  await client.connect(new StreamableHTTPClientTransport(new URL(RELAY)));
-
+  await client.connect(new StreamableHTTPClientTransport(new URL(MCP)));
   const tools = (await client.listTools()).tools.map((t) => t.name);
-  assert(tools.includes('add_task'), `tools/list includes add_task (got: ${tools.join(', ')})`);
+  assert(tools.includes('add_task') && tools.includes('delete_all_tasks'), `tools/list ok (got: ${tools.join(', ')})`);
+  assert(!tools.includes('__minder_ready'), 'internal primer hidden from tools/list');
 
-  const res = await client.callTool({ name: 'add_task', arguments: { text: 'milk' } });
-  const payload = JSON.parse(res.content[0].text);
-  assert(payload.ok === true, `agent received {ok:true} (got: ${JSON.stringify(payload)})`);
-  assert(board.includes('milk'), `task "milk" landed in the app board (board: ${JSON.stringify(board)})`);
+  // write passes the gate straight through
+  const add = JSON.parse((await client.callTool({ name: 'add_task', arguments: { text: 'milk' } })).content[0].text);
+  assert(add.ok === true, `add_task (write) passes gate (got: ${JSON.stringify(add)})`);
+  assert(board.some((t) => t.text === 'milk'), 'task "milk" landed in the app board');
 
-  // --- second concurrent session (regresses the "Already connected" bug) ---
+  // read passes the gate straight through
+  const listed = JSON.parse((await client.callTool({ name: 'list_tasks', arguments: {} })).content[0].text);
+  assert(Array.isArray(listed.tasks) && listed.tasks.length >= 1, 'list_tasks (read) passes gate');
+
+  // --- 2nd concurrent session (regresses "Already connected") ---------------
   client2 = new Client({ name: 'e2e-probe-2', version: '0.0.1' });
-  let secondConnected = true;
-  try {
-    await client2.connect(new StreamableHTTPClientTransport(new URL(RELAY)));
-    const tools2 = (await client2.listTools()).tools.map((t) => t.name);
-    assert(tools2.includes('add_task'), `2nd session lists add_task too (got: ${tools2.join(', ')})`);
-  } catch (e) {
-    secondConnected = false;
-    assert(false, `2nd concurrent session connects (got error: ${e.message})`);
-  }
-  assert(secondConnected, 'two concurrent MCP sessions coexist (per-session McpServer)');
+  await client2.connect(new StreamableHTTPClientTransport(new URL(MCP)));
+  assert((await client2.listTools()).tools.length > 0, 'two concurrent MCP sessions coexist');
+
+  // --- destructive -> pending -> APPROVE -> runs (AC-3) --------------------
+  const clearP = client.callTool({ name: 'delete_all_tasks', arguments: {} });
+  const pend = await firstPending();
+  assert(pend && pend.tool === 'delete_all_tasks', 'destructive call paused at the gate (pending)');
+  await decide(pend.id, true);
+  const cleared = JSON.parse((await clearP).content[0].text);
+  assert(cleared.ok === true, 'approved destructive call ran');
+  assert(board.length === 0, 'board cleared after approval');
+
+  // --- destructive -> pending -> DENY -> isError, no mutation (AC-3) -------
+  board.push({ id: 'tX', text: 'keep me' });
+  const denyP = client.callTool({ name: 'delete_all_tasks', arguments: {} });
+  const pend2 = await firstPending();
+  await decide(pend2.id, false);
+  const denied = await denyP;
+  assert(denied.isError === true, 'denied destructive call returns isError to agent');
+  assert(board.length === 1, 'board unchanged after deny');
+
+  // --- anti self-approve: wrong token -> 403 (AC-4) ------------------------
+  const badP = client.callTool({ name: 'delete_all_tasks', arguments: {} });
+  const pend3 = await firstPending();
+  const bad = await decide(pend3.id, true, 'WRONG-TOKEN');
+  assert(bad.status === 403, `decide with wrong approver-token -> 403 (got ${bad.status})`);
+  await decide(pend3.id, false); // clean up the pending
+
+  // --- fidelity: hidden unicode flagged, canonical executes (AC-5) ---------
+  const tamperP = client.callTool({ name: 'delete_task', arguments: { id: 't1​​' } });
+  const pend4 = await firstPending();
+  assert(pend4 && pend4.tampered === true, 'tampered args flagged (raw ≠ canonical)');
+  assert(pend4.canonical.id === 't1', `canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
+  await decide(pend4.id, false);
+  await tamperP.catch(() => {});
+
+  // --- audit (AC-6) ---------------------------------------------------------
+  const audit = readFileSync('audit.jsonl', 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert(audit.some((e) => e.decision === 'pending'), 'audit.jsonl records intent (pending)');
+  assert(audit.some((e) => e.decision === 'allow' && e.approver === 'ui'), 'audit.jsonl records approved outcome');
+  assert(audit.some((e) => e.decision === 'deny'), 'audit.jsonl records denied outcome');
 } finally {
   await client?.close().catch(() => {});
   await client2?.close().catch(() => {});
@@ -87,5 +157,5 @@ try {
   relay.kill();
 }
 
-console.log(failures === 0 ? '\n✅ E2E round-trip GREEN' : `\n❌ ${failures} assertion(s) failed`);
+console.log(failures === 0 ? '\n✅ E2E + GATE GREEN' : `\n❌ ${failures} assertion(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

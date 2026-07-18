@@ -1,12 +1,14 @@
 // MinderProvider (T-B1) — installs a document.modelContext shim backed by the relay ws.
 // Tools registered via useWebMCP flow straight through this shim into the server-side gate.
 //
-// Two things this file gets deliberately right:
-//  1. The shim is installed during PROVIDER RENDER, not in an effect. React runs child
-//     effects before parent effects, so a useEffect here would install document.modelContext
-//     AFTER the child's useWebMCP already tried to read it — tools would never register.
+// Deliberate correctness:
+//  1. The shim is installed during PROVIDER RENDER, not in an effect. React runs child effects
+//     before parent effects, so a useEffect here would install document.modelContext AFTER the
+//     child's useWebMCP already read it — tools would never register.
 //  2. The ws + shim are a MODULE-SCOPE SINGLETON, so React StrictMode's mount→unmount→mount
 //     can't close the socket and leave it dead. The socket lives for the page lifetime.
+//  3. Registrations buffer in an outbox until the socket opens (token is fetched async, T-G1).
+//  4. T-H1: if a native WebMCP surface exists, registrations mirror to it too.
 
 import type { ReactNode } from 'react';
 import { getModelContext, type ModelContextSurface, type ToolDescriptor } from './model-context.js';
@@ -29,33 +31,55 @@ function stripDescriptor(d: ToolDescriptor) {
   };
 }
 
-function createShim(url: string, token?: string): Shim {
-  const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
-  const ws = new WebSocket(wsUrl);
+function httpBaseFrom(wsUrl: string): string {
+  return wsUrl.replace(/^ws/, 'http').replace(/\/app$/, '');
+}
+
+function createShim(url: string, token: string | undefined, native: ModelContextSurface | undefined): Shim {
   const tools = new Map<string, ToolDescriptor>();
+  const outbox: string[] = [];
+  let ws: WebSocket | undefined;
 
-  ws.addEventListener('message', (e) => {
-    const m = JSON.parse(e.data);
-    if (m.type !== 'call') return;
-    Promise.resolve(tools.get(m.name)?.execute(m.args))
-      .then((result) => ws.send(JSON.stringify({ type: 'result', id: m.id, result })))
-      .catch((error) => ws.send(JSON.stringify({ type: 'result', id: m.id, error: String(error) })));
-  });
-  ws.addEventListener('error', () => {
-    // Surfaced in the browser console; relay may just not be up yet.
-    console.warn('[minder] relay ws error — is the relay running on', url, '?');
-  });
-
-  const send = (payload: unknown) => {
-    const data = JSON.stringify(payload);
-    if (ws.readyState === WebSocket.OPEN) ws.send(data);
-    else ws.addEventListener('open', () => ws.send(data), { once: true });
+  const flush = () => {
+    if (ws?.readyState !== WebSocket.OPEN) return;
+    for (const msg of outbox.splice(0)) ws.send(msg);
   };
+  const send = (payload: unknown) => {
+    outbox.push(JSON.stringify(payload));
+    flush();
+  };
+
+  // Resolve the token (prop wins; otherwise fetch from the relay), then open the socket.
+  (async () => {
+    let t = token;
+    if (!t) {
+      try {
+        const r = await fetch(`${httpBaseFrom(url)}/app-token`);
+        t = (await r.json()).token;
+      } catch {
+        console.warn('[minder] could not fetch /app-token — is the relay running?');
+      }
+    }
+    const wsUrl = t ? `${url}?token=${encodeURIComponent(t)}` : url;
+    ws = new WebSocket(wsUrl);
+    ws.addEventListener('open', flush);
+    ws.addEventListener('error', () =>
+      console.warn('[minder] relay ws error — is the relay running on', url, '?'),
+    );
+    ws.addEventListener('message', (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type !== 'call') return;
+      Promise.resolve(tools.get(m.name)?.execute(m.args))
+        .then((result) => send({ type: 'result', id: m.id, result }))
+        .catch((error) => send({ type: 'result', id: m.id, error: String(error) }));
+    });
+  })();
 
   const modelContext: ModelContextSurface = {
     registerTool(descriptor, options) {
       tools.set(descriptor.name, descriptor);
       send({ type: 'register', tool: stripDescriptor(descriptor) });
+      native?.registerTool(descriptor, options); // T-H1: mirror to native surface if present
       options?.signal?.addEventListener('abort', () => {
         tools.delete(descriptor.name);
         send({ type: 'unregister', name: descriptor.name });
@@ -69,8 +93,9 @@ function createShim(url: string, token?: string): Shim {
 // Idempotent install — safe to call on every render.
 function ensureShim(url: string, token?: string): void {
   if (typeof window === 'undefined') return;
-  if (getModelContext()) return; // native WebMCP surface or our shim already present (T-H1 degrade)
-  if (!singleton) singleton = createShim(url, token);
+  if (singleton) return; // already installed this page
+  const native = getModelContext(); // capture a native WebMCP surface before we overwrite (T-H1)
+  singleton = createShim(url, token, native);
   Object.defineProperty(document, 'modelContext', {
     value: singleton.modelContext,
     configurable: true,
@@ -81,7 +106,7 @@ export interface MinderProviderProps {
   children: ReactNode;
   /** Relay ws endpoint. Default ws://127.0.0.1:7331/app */
   url?: string;
-  /** One-time loopback token minted by the relay (T-G1). */
+  /** Optional explicit ws token (otherwise fetched from the relay, T-G1). */
   token?: string;
 }
 

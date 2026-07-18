@@ -12,7 +12,15 @@ export default function App() {
   const tasksRef = useRef<Task[]>(tasks);
   tasksRef.current = tasks;
 
-  // ---- 5 tools declared as WebMCP actions (T-B2) ----------------------------
+  // ---- tools declared as WebMCP actions (T-B2) ------------------------------
+  useWebMCP({
+    name: 'list_tasks',
+    description: 'List all tasks with their id, text, and done status',
+    inputSchema: {},
+    annotations: { title: 'List tasks', readOnlyHint: true },
+    handler: async () => ({ tasks: tasksRef.current }),
+  });
+
   useWebMCP({
     name: 'add_task',
     description: 'Add a new task to the board',

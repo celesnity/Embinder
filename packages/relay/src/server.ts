@@ -12,7 +12,8 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import express, { type Request, type Response } from 'express';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import { z, type ZodRawShape } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -21,12 +22,35 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isInitializeRequest, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import { loadPolicy, riskOf } from './policy.js';
-import { gate } from './gate.js';
+import { gate, type GateCtx } from './gate.js';
+import { mintToken, tokenMatches, hostAllowed, originAllowed } from './security.js';
+import { mountApprovalRoutes } from './approval-routes.js';
+import { enableCliApprovals } from './approval.js';
+
+// A broken stdout pipe (parent process killed us mid-log) must not crash the relay.
+process.stdout.on('error', () => {});
+process.stderr.on('error', () => {});
 
 const PORT = 7331;
 const HOST = '127.0.0.1';
-const POLICY_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../../minder.policy.json');
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const POLICY_PATH = resolve(ROOT, 'minder.policy.json');
+const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);
+
+// ---- T-G1: one-time loopback tokens -----------------------------------------
+const APP_TOKEN = mintToken(); // ws /app (browser app)
+const APPROVER_TOKEN = mintToken(); // /api/decide (approval page)
+// Written for local tooling/tests (gitignored). Browser fetches its token via GET /app-token.
+try {
+  mkdirSync(resolve(ROOT, '.minder'), { recursive: true });
+  writeFileSync(
+    resolve(ROOT, '.minder/session.json'),
+    JSON.stringify({ port: PORT, appToken: APP_TOKEN, approverToken: APPROVER_TOKEN }, null, 2),
+  );
+} catch {
+  /* non-fatal */
+}
 
 // ---- app socket (relay-owned) + pending calls -------------------------------
 let appSocket: WebSocket | undefined;
@@ -77,8 +101,22 @@ function registerGatedTool(
   if (tools.has(name)) tools.get(name)!.remove();
   const tool = server.registerTool(name, def.config, async (args: unknown, extra) => {
     const risk = riskOf(policy, name, def.destructive);
-    await gate(name, args, risk, extra.signal); // pauses/denies destructive; passes read/write
-    return forwardToBrowser(name, args);
+    const ctx: GateCtx = {
+      session: extra.sessionId,
+      auditPath: AUDIT_PATH,
+      rateLimitPerMin: policy.rateLimit?.perToolPerMin,
+      // Keep the MCP stream alive while a human decides (weak clients otherwise idle-timeout).
+      keepAlive: () =>
+        void extra
+          .sendNotification({
+            method: 'notifications/message',
+            params: { level: 'debug', logger: 'minder', data: `awaiting approval for ${name}` },
+          })
+          .catch(() => {}),
+    };
+    // gate pauses/denies destructive, passes read/write, and returns the CANONICAL args to run.
+    const canonicalArgs = await gate(name, args, risk, extra.signal, ctx);
+    return forwardToBrowser(name, canonicalArgs);
   });
   tools.set(name, tool);
 }
@@ -120,12 +158,40 @@ function toZodShape(schema: unknown): ZodRawShape {
 const app = express();
 app.use(express.json());
 
+// T-G2: Host/Origin allowlist (blunts DNS-rebinding). Loopback-only; absent Origin = trusted.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!hostAllowed(req.headers.host)) return res.status(403).send('host not allowed');
+  if (!originAllowed(req.headers.origin)) return res.status(403).send('origin not allowed');
+  next();
+});
+
+// T-G1: the browser app fetches its ws token here (Origin-gated to :5173 by the middleware above).
+app.get('/app-token', (req: Request, res: Response) => {
+  const origin = req.headers.origin;
+  if (origin) res.set('Access-Control-Allow-Origin', origin); // already allowlisted by middleware
+  res.json({ token: APP_TOKEN });
+});
+
+// T-E1/E2: approval surface (out-of-tab).
+mountApprovalRoutes(app, APPROVER_TOKEN);
+enableCliApprovals();
+
 const httpServer = app.listen(PORT, HOST, () => {
   console.log(`[minder] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
+  console.log(`[minder] approvals: http://127.0.0.1:${PORT}/approve`);
+  console.log(`[minder] audit log: ${AUDIT_PATH}`);
 });
 
 const wss = new WebSocketServer({ server: httpServer, path: '/app' });
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  // T-G1/G2: only the app holding the minted token, from an allowed origin, may attach.
+  const url = new URL(req.url ?? '/app', 'http://localhost');
+  const token = url.searchParams.get('token') ?? undefined;
+  if (!originAllowed(req.headers.origin) || !tokenMatches(token, APP_TOKEN)) {
+    console.warn('[minder] app ws rejected (bad origin or token)');
+    ws.close(1008, 'unauthorized');
+    return;
+  }
   appSocket = ws;
   console.log('[minder] app connected');
   ws.on('message', (buf) => {
