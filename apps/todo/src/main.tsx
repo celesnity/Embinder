@@ -6,7 +6,7 @@ import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <EmbinderProvider url="ws://127.0.0.1:7331/app" viz chat={{ baseURL: 'http://127.0.0.1:1234/v1', model: 'qwen2.5-7b-instruct' }}>
+    <EmbinderProvider url="ws://127.0.0.1:7331/app" viz chat={{}}>
       <App />
     </EmbinderProvider>
   </StrictMode>,

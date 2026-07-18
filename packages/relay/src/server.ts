@@ -35,6 +35,15 @@ process.stderr.on('error', () => {});
 const PORT = 7331;
 const HOST = '127.0.0.1';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+
+// Load the project-root .env so MINDER_API_BASE_URL / MINDER_MODEL / OPENAI_API_KEY
+// reach the chat route regardless of the workspace cwd. Non-fatal if absent.
+try {
+  process.loadEnvFile(resolve(ROOT, '.env'));
+} catch {
+  /* no .env — rely on the ambient environment */
+}
+
 const POLICY_PATH = resolve(ROOT, 'embinder.policy.json');
 const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);

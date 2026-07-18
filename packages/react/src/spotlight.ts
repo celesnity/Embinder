@@ -31,7 +31,8 @@ const CSS = `
 .gmc-popover.gmc-done{box-shadow:0 0 0 2px #6ee7a0}
 .gmc-approve-link{display:inline-block;margin-top:8px;color:#8ab4ff;font-weight:600;text-decoration:none}
 @keyframes gmc-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
-.gmc-popover .gmc-decide{flex:1;font-size:13px;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid #444}
+.gmc-popover .gmc-approve-row{display:flex;gap:8px;margin-top:10px}
+.gmc-popover .gmc-decide{flex:1;font-size:13px;padding:7px 8px;border-radius:6px;cursor:pointer;border:1px solid #444;font-weight:600}
 .gmc-popover .gmc-approve{background:#183d1e;color:#7ee29a;border-color:#2a5}
 .gmc-popover .gmc-deny{background:#3d1818;color:#ff8a8a;border-color:#a33}
 `;
@@ -121,18 +122,17 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
       ...base,
       disableActiveInteraction: !!opts.lock,
       popoverClass: opts.klass ? `gmc-popover ${opts.klass}` : 'gmc-popover',
+      // Wire the Approve/Deny buttons embedded in the description (driver.js hides its own
+      // footer when showButtons is empty, so we can't rely on footerButtons).
       onPopoverRender:
         decideId && approverToken
           ? (popover) => {
-              const mk = (label: string, cls: string, approve: boolean) => {
-                const b = document.createElement('button');
-                b.innerText = label;
-                b.className = `driver-popover-footer-btn gmc-decide ${cls}`;
-                b.addEventListener('click', () => void postDecide(decideId, approve));
-                popover.footerButtons.appendChild(b);
-              };
-              mk('Approve', 'gmc-approve', true);
-              mk('Deny', 'gmc-deny', false);
+              const root = (popover.wrapper ?? popover.description) as HTMLElement | undefined;
+              root?.querySelectorAll<HTMLButtonElement>('.gmc-decide').forEach((b) => {
+                b.addEventListener('click', () =>
+                  void postDecide(decideId, b.dataset.approve === '1'),
+                );
+              });
             }
           : undefined,
     });
@@ -166,7 +166,7 @@ export function createSpotlight(approveUrl: string, decideBase?: string): Spotli
               active.name,
               `⏳ Waiting for owner approval…<br>${fidelity(active.preview)}` +
                 (inline
-                  ? ''
+                  ? `<div class="gmc-approve-row"><button class="gmc-decide gmc-approve" data-approve="1">Approve</button><button class="gmc-decide gmc-deny" data-approve="0">Deny</button></div>`
                   : `<a class="gmc-approve-link" href="${approveUrl}" target="_blank" rel="noopener">→ open approval page</a>`),
               { lock: true, klass: 'gmc-pending', decide: active.id },
             );
