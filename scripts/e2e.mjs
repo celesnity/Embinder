@@ -84,9 +84,7 @@ let muteRestore = false; // when true, restore_task calls go unanswered (unmount
 // --- boot relay -------------------------------------------------------------
 const relay = spawn('npx', ['tsx', 'packages/relay/src/server.ts'], {
   stdio: ['ignore', 'pipe', 'inherit'],
-  // Pin GMC_INLINE_APPROVAL off so the "/approver-token disabled by default" assertion is
-  // deterministic regardless of a developer's local .env (loadEnvFile won't override a preset var).
-  env: { ...process.env, LLM_BASE_URL: 'http://127.0.0.1:4242/v1', LLM_MODEL: 'demo-model', GMC_INLINE_APPROVAL: '0' },
+  env: { ...process.env, LLM_BASE_URL: 'http://127.0.0.1:4242/v1', LLM_MODEL: 'demo-model' },
 });
 await new Promise((resolve, reject) => {
   const t = globalThis.setTimeout(() => reject(new Error('relay did not start in 10s')), 10_000);
@@ -338,9 +336,11 @@ try {
   assert(chatCfg.baseURL === 'http://127.0.0.1:4242/v1' && chatCfg.model === 'demo-model',
     `D-9 /chat-config serves relay env LLM config (got: ${JSON.stringify(chatCfg)})`);
 
-  // --- /approver-token is off unless explicitly enabled ----------------------
-  const tokOff = await fetch(`${BASE}/approver-token`);
-  assert(tokOff.status === 403, `/approver-token disabled by default -> 403 (got ${tokOff.status})`);
+  // --- /approver-token serves the token so the app tab can approve on screen -------------
+  const tokRes = await fetch(`${BASE}/approver-token`);
+  const tokBody = await tokRes.json().catch(() => ({}));
+  assert(tokRes.status === 200 && typeof tokBody.token === 'string' && tokBody.token.length > 0,
+    `/approver-token serves the token for on-screen approval (got ${tokRes.status})`);
 
   // --- CORS preflight for the browser bubble ---------------------------------
   const pre = await fetch(`${BASE}/chat`, {

@@ -257,14 +257,14 @@ app.get('/app-token', (req: Request, res: Response) => {
   res.json({ token: APP_TOKEN });
 });
 
-// Opt-in (GMC_INLINE_APPROVAL=1): lets the app tab drive the driver.js Approve/Deny buttons.
-// Off by default → the strict out-of-tab posture holds (decide only from /approve).
-app.get('/approver-token', (req: Request, res: Response) => {
-  if (process.env.GMC_INLINE_APPROVAL !== '1') return res.status(403).json({ error: 'inline approval disabled' });
+// On-screen approval is the only path: hand the app tab the approver-token so the spotlight can
+// render inline Approve/Deny buttons. (The out-of-tab /approve page and its anti-self-approve
+// posture were removed by product decision — the agent-driven tab now holds the token.)
+app.get('/approver-token', (_req: Request, res: Response) => {
   res.json({ token: APPROVER_TOKEN });
 });
 
-// T-E1/E2: approval surface (out-of-tab).
+// T-E1/E2: approval surface — /api/pending (SSE) + /api/decide.
 mountApprovalRoutes(app, APPROVER_TOKEN);
 // T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
 mountChatRoute(app, { registry, runGatedCall });
@@ -274,7 +274,7 @@ enableCliApprovals();
 
 const httpServer = app.listen(PORT, HOST, () => {
   console.log(`[embinder] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
-  console.log(`[embinder] approvals: http://127.0.0.1:${PORT}/approve`);
+  console.log(`[embinder] approvals: on screen (inline Approve/Deny in the app tab)`);
   console.log(`[embinder] audit log: ${AUDIT_PATH}`);
 });
 

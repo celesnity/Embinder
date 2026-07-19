@@ -168,7 +168,7 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
     Promise.all([import('./spotlight.js'), import('./ghost-cursor.js')]).then(
       ([{ createSpotlight }, { createGhostCursor }]) => {
         if (cancelled) return;
-        sp = createSpotlight(`${httpBaseFrom(url)}/approve`, httpBaseFrom(url));
+        sp = createSpotlight(httpBaseFrom(url));
         ghost = createGhostCursor();
         singleton!.setPhaseListener((m) => {
           sp!.handle(m);

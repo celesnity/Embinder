@@ -1,6 +1,6 @@
 {
   "project": "Embinder",
-  "updated": "2026-07-18",
+  "updated": "2026-07-19",
   "status_legend": [
     "not_started",
     "in_progress",
@@ -9,6 +9,22 @@
   ],
   "rule": "Only one feature may be in_progress at a time. 'passing' requires verification evidence produced on the current host.",
   "features": [
+    {
+      "id": "F-AGENTFORM",
+      "priority": 6,
+      "area": "react-sdk",
+      "title": "AgentForm — one structured tool that fills + submits a form",
+      "user_visible_behavior": "An app developer can render <AgentForm>; an agent calls submit_<name> to fill the real named controls and trigger the same submit callback a human uses.",
+      "status": "passing",
+      "verification": [
+        "npm test --workspace @embinder/react -- src/components/AgentForm.test.tsx",
+        "npm test --workspace @embinder/react",
+        "npm run typecheck",
+        "npm run e2e"
+      ],
+      "evidence": "2026-07-19 current host: focused npm test --workspace @embinder/react -- src/components/AgentForm.test.tsx -> 7/7 PASS, exit 0. Final-fix rerun: npm test --workspace @embinder/react -> Vitest: 14 test files passed, 48 tests passed (exit 0). npm run typecheck -> @embinder/react and @embinder/relay tsc -p tsconfig.json --noEmit completed (exit 0). npm run e2e -> all SC assertions PASS; E2E + GATE GREEN (exit 0).",
+      "notes": "User-directed work on 2026-07-19. No relay/wire changes; document that agent-supplied values are visible to the agent and audit log."
+    },
     {
       "id": "F-WIN1",
       "priority": 1,
@@ -56,7 +72,7 @@
       "id": "F-SEC",
       "priority": 4,
       "area": "security",
-      "title": "D6 hardening: token/origin bind + anti self-approve",
+      "title": "D6 hardening: token/origin bind + approver-token check (anti-self-approve REMOVED)",
       "user_visible_behavior": "The ws /app is token-gated; a decide call with the wrong approver token is rejected (403); relay binds loopback with Host/Origin allowlist.",
       "status": "passing",
       "verification": [
@@ -64,7 +80,7 @@
         "expect PASS: 'decide with wrong approver-token -> 403'"
       ],
       "evidence": "2026-07-18: e2e PASS on wrong-token 403 and token-authenticated ws /app open.",
-      "notes": "AC-7 rate limit (per-tool/60s) is NOT exercised by e2e on this host - manual only; tracked under F-D8."
+      "notes": "2026-07-19 PRODUCT DECISION: out-of-tab /approve page removed; on-screen inline Approve/Deny is now the only path. This DROPS anti-self-approve (AC-4) - /approver-token now always serves the token, so the agent-driven app tab holds it and can approve its own destructive calls. The approver-token CHECK on /api/decide remains (wrong token -> 403). AC-7 rate limit still e2e-unverified (see F-D8)."
     },
     {
       "id": "F-CHAT",
@@ -75,7 +91,7 @@
       "status": "passing",
       "verification": [
         "npm run e2e",
-        "expect PASS: /chat streamed ok (200), chat tool call landed via the gate, chat destructive paused + ran after approval, off-allowlist baseURL -> 400, /approver-token disabled by default -> 403, CORS preflight -> 204 + echoes app origin"
+        "expect PASS: /chat streamed ok (200), chat tool call landed via the gate, chat destructive paused + ran after approval, off-allowlist baseURL -> 400, /approver-token serves the token (200, on-screen approval), CORS preflight -> 204 + echoes app origin"
       ],
       "evidence": "2026-07-18: e2e (post-Embinder-sync) PASS on all chat-bubble assertions via a deterministic stub LLM.",
       "notes": "Feature-flagged. Headless only (stub LLM) - real-browser bubble click-through is unverified (see F-D8)."
@@ -85,13 +101,13 @@
       "priority": 6,
       "area": "verification",
       "title": "Live-browser + spotlight + rate-limit behavioral proof",
-      "user_visible_behavior": "The same round-trip works through the real @embinder/react provider + DOM at :5173, the driver.js spotlight locks the destructive element, and AC-7 rate limit denies over-limit calls.",
+      "user_visible_behavior": "The same round-trip works through the real @embinder/react provider + DOM at :5173, the driver.js spotlight locks the destructive element and shows inline Approve/Deny on screen, and AC-7 rate limit denies over-limit calls.",
       "status": "not_started",
       "verification": [
         "npm run dev",
-        "open http://localhost:5173 and http://127.0.0.1:7331/approve",
+        "open http://localhost:5173 (approvals are on screen in the app tab)",
         "point MCP Inspector (npx @modelcontextprotocol/inspector) at http://127.0.0.1:7331/mcp",
-        "call delete_all_tasks -> confirm spotlight locks the element + gate pending, approve at /approve",
+        "call delete_all_tasks -> confirm spotlight locks the element + gate pending, Approve/Deny inline in the app tab",
         "exceed policy.rateLimit.perToolPerMin -> expect deny (AC-7)"
       ],
       "evidence": "",

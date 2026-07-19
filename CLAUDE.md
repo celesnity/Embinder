@@ -31,7 +31,7 @@ action **spotlight**. Monorepo (npm workspaces): `@embinder/relay` (MCP server +
 | Install | `npm install` |
 | Verify (baseline) | `npm run typecheck` then `npm run e2e` |
 | Run the app | `npm run dev`  (relay :7331 + todo :5173) |
-| Approvals surface | http://127.0.0.1:7331/approve |
+| Approvals surface | on screen — inline Approve/Deny in the app tab (the out-of-tab /approve page was removed) |
 
 ## Definition of done (the most important section)
 

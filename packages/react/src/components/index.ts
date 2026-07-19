@@ -17,3 +17,7 @@ export type { AgentToggleProps } from './AgentToggle.js';
 export { AgentLink } from './AgentLink.js';
 export type { AgentLinkProps } from './AgentLink.js';
 export type { AgentSharedProps } from './createAgentElement.js';
+export { AgentList } from './AgentList.js';
+export type { AgentListProps, AgentAction } from './AgentList.js';
+export { AgentForm } from './AgentForm.js';
+export type { AgentFormProps } from './AgentForm.js';
