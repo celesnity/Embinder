@@ -1,6 +1,6 @@
 {
   "project": "Embinder",
-  "updated": "2026-07-18",
+  "updated": "2026-07-19",
   "status_legend": [
     "not_started",
     "in_progress",
@@ -9,6 +9,22 @@
   ],
   "rule": "Only one feature may be in_progress at a time. 'passing' requires verification evidence produced on the current host.",
   "features": [
+    {
+      "id": "F-AGENTFORM",
+      "priority": 6,
+      "area": "react-sdk",
+      "title": "AgentForm — one structured tool that fills + submits a form",
+      "user_visible_behavior": "An app developer can render <AgentForm>; an agent calls submit_<name> to fill the real named controls and trigger the same submit callback a human uses.",
+      "status": "passing",
+      "verification": [
+        "npm test --workspace @embinder/react -- src/components/AgentForm.test.tsx",
+        "npm test --workspace @embinder/react",
+        "npm run typecheck",
+        "npm run e2e"
+      ],
+      "evidence": "2026-07-19 current host: focused npm test --workspace @embinder/react -- src/components/AgentForm.test.tsx -> 7/7 PASS, exit 0. Final-fix rerun: npm test --workspace @embinder/react -> Vitest: 14 test files passed, 48 tests passed (exit 0). npm run typecheck -> @embinder/react and @embinder/relay tsc -p tsconfig.json --noEmit completed (exit 0). npm run e2e -> all SC assertions PASS; E2E + GATE GREEN (exit 0).",
+      "notes": "User-directed work on 2026-07-19. No relay/wire changes; document that agent-supplied values are visible to the agent and audit log."
+    },
     {
       "id": "F-WIN1",
       "priority": 1,

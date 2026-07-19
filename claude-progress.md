@@ -20,6 +20,16 @@ The progress log. Every session reads this first and updates it last.
 
 ## Session Record
 
+### 2026-07-19 - AgentForm Task 3 verification and evidence
+
+- **AgentForm scope:** verified the completed `@embinder/react` AgentForm component and its integration without changing implementation.
+- **Verification on this host:** `npm test --workspace @embinder/react` -> Vitest 14 test files passed, 46 tests passed, exit 0; `npm run typecheck` -> `@embinder/react` and `@embinder/relay` `tsc -p tsconfig.json --noEmit`, exit 0; `npm run e2e` -> all SC assertions PASS, `E2E + GATE GREEN`, exit 0.
+- **Feature state:** recorded fresh evidence and marked only `F-AGENTFORM` as `passing` in `feature_list.json`.
+- **Deferred reviewer minor:** direct human-path tests for individual textarea and select controls remain a test-coverage improvement; no implementation change made in this verification task.
+- **Commit:** none (not requested).
+
+**Addendum — final AgentForm fix:** Fresh rerun after final review approval: `npm test --workspace @embinder/react` -> 14 test files and 48 tests passed, exit 0; `npm run typecheck` -> exit 0 across `@embinder/react` and `@embinder/relay`; `npm run e2e` -> all SC assertions PASS, `E2E + GATE GREEN`, exit 0. Final review approved.
+
 ### 2026-07-19 - Remove out-of-tab /approve; agent components; ghost-cursor tuning
 
 - **Agent components** shipped in `@embinder/react` (AgentButton/Input/Select/Div/Checkbox/RadioGroup/Toggle/Link + `createAgentElement` factory + dispatch helpers). react suite 33/33, typecheck 0. Wired AgentButton (undo, mark_all_done) + AgentInput (set_search) into apps/todo Toolbar; added `set_search: write` to policy.
