@@ -23,6 +23,8 @@ export const ALLOWED_ORIGINS = [
   // PocketBase's default standalone origin (embedded Admin UI).
   'http://localhost:8090',
   'http://127.0.0.1:8090',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
 ];
 
 // Host header must be a loopback:port we recognise (blunts DNS-rebinding).
