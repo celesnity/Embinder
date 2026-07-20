@@ -11,3 +11,6 @@ apps/pocketbase/pb_data/
 AI_platform_pitch_deck.pptx
 # PocketBase ships its built admin UI here; the global dist/ rule above would drop it
 !apps/pocketbase/ui/dist/
+.agents
+skills-lock.json
+AGENTS.md
