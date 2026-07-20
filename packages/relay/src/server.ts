@@ -46,6 +46,9 @@ try {
 const POLICY_PATH = resolve(ROOT, 'embinder.policy.json');
 const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);
+const ENABLE_MCP = process.env.EMBINDER_ENABLE_MCP !== 'false';
+const ENABLE_CHAT = process.env.EMBINDER_ENABLE_CHAT !== 'false';
+const DIRECT_TOKEN = process.env.EMBINDER_DIRECT_TOKEN;
 
 // ---- T-G1: one-time loopback tokens -----------------------------------------
 const APP_TOKEN = mintToken(); // ws /app (browser app)
@@ -290,10 +293,32 @@ app.get('/approver-token', (_req: Request, res: Response) => {
 // T-E1/E2: approval surface — /api/pending (SSE) + /api/decide.
 mountApprovalRoutes(app, APPROVER_TOKEN);
 // T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
-mountChatRoute(app, { registry, runGatedCall, onFocus: (phase) => emitToApp('focus', phase) });
-// D-9: bubble config lives in relay env, beside the key.
-mountChatConfigRoute(app, { baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL });
+if (ENABLE_CHAT) {
+  mountChatRoute(app, { registry, runGatedCall, onFocus: (phase) => emitToApp('focus', phase) });
+  mountChatConfigRoute(app, { baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL });
+}
 enableCliApprovals();
+
+app.post('/internal/direct-call', async (req: Request, res: Response, next: NextFunction) => {
+  if (!DIRECT_TOKEN || !tokenMatches(req.header('x-embinder-direct-token'), DIRECT_TOKEN)) {
+    return res.sendStatus(401);
+  }
+  const name = typeof req.body?.name === 'string' ? req.body.name : '';
+  const def = registry.get(name);
+  if (!def) return res.status(404).json({ error: 'capability_not_registered' });
+  try {
+    const result = await runGatedCall(
+      name,
+      req.body?.args ?? {},
+      def.destructive,
+      typeof req.body?.session === 'string' ? req.body.session : 'minder-direct',
+      new AbortController().signal,
+    );
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 const httpServer = app.listen(PORT, HOST, () => {
   console.log(`[embinder] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
@@ -355,7 +380,8 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// ---- MCP streamable HTTP routes (T-C3) --------------------------------------
+// ---- MCP streamable HTTP routes (optional; disabled for Minder integration) --
+if (ENABLE_MCP) {
 app.post('/mcp', async (req: Request, res: Response) => {
   const sid = req.headers['mcp-session-id'] as string | undefined;
   let transport = sid ? sessions.get(sid)?.transport : undefined;
@@ -397,9 +423,10 @@ const sessionRoute = (req: Request, res: Response) => {
 };
 app.get('/mcp', sessionRoute);
 app.delete('/mcp', sessionRoute);
+}
 
 // ---- stdio fallback (T-C3) --------------------------------------------------
-if (process.argv.includes('--stdio')) {
+if (ENABLE_MCP && process.argv.includes('--stdio')) {
   const { server: stdioServer } = buildSessionServer();
   stdioServer.connect(new StdioServerTransport());
   console.log('[embinder] stdio transport connected');
