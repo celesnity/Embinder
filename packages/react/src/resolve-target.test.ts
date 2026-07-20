@@ -16,6 +16,20 @@ function rect(node: HTMLElement, r: Partial<DOMRect>) {
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('resolveAgentTarget', () => {
+  it('resolves a declared scope anchor', () => {
+    const scope = document.createElement('section');
+    scope.setAttribute('data-embinder-scope', 'inbox/task_t1');
+    document.body.append(scope);
+    expect(resolveAgentTarget('focus_inbox__task_t1', undefined, 'inbox/task_t1')).toBe(scope);
+  });
+
+  it('resolves an explicit fallback focus anchor for a read-only tool', () => {
+    const tags = document.createElement('div');
+    tags.setAttribute('data-embinder-focus-for', 'list_tags');
+    document.body.append(tags);
+    expect(resolveAgentTarget('list_tags')).toBe(tags);
+  });
+
   it('resolves a single tool anchor by name', () => {
     const b = el('<button data-embinder-tool="undo">Undo</button>');
     expect(resolveAgentTarget('undo')).toBe(b);

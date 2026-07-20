@@ -18,12 +18,15 @@ import { installActionTools } from './actions/registerActionTools.js';
 import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no driver.js at runtime
 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
-const PHASE_TYPES = new Set(['intent', 'gate', 'decided']);
+const PHASE_TYPES = new Set(['intent', 'gate', 'decided', 'focus']);
 
 interface Shim {
   modelContext: ModelContextSurface;
   setPhaseListener(fn: ((m: PhaseMessage) => void) | undefined): void;
   sendContext(name: string, state: unknown): void;
+  registerScope(scope: { id: string; parentId?: string; name: string }): void;
+  sendScopeContext(id: string, state: unknown): void;
+  unregisterScope(id: string): void;
 }
 let singleton: Shim | undefined;
 
@@ -31,6 +34,9 @@ let singleton: Shim | undefined;
 export function sendEmbinderContext(name: string, state: unknown): void {
   singleton?.sendContext(name, state);
 }
+export function registerEmbinderScope(scope: { id: string; parentId?: string; name: string }): void { singleton?.registerScope(scope); }
+export function sendEmbinderScopeContext(id: string, state: unknown): void { singleton?.sendScopeContext(id, state); }
+export function unregisterEmbinderScope(id: string): void { singleton?.unregisterScope(id); }
 
 function stripDescriptor(d: ToolDescriptor) {
   return {
@@ -48,9 +54,14 @@ function httpBaseFrom(wsUrl: string): string {
 
 function createShim(url: string, token: string | undefined, native: ModelContextSurface | undefined): Shim {
   const tools = new Map<string, ToolDescriptor>();
+  const contexts = new Map<string, unknown>();
+  const scopes = new Map<string, { id: string; parentId?: string; name: string }>();
+  const scopeContexts = new Map<string, unknown>();
   const outbox: string[] = [];
   let ws: WebSocket | undefined;
   let phaseListener: ((m: PhaseMessage) => void) | undefined;
+  let opened = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
   const flush = () => {
     if (ws?.readyState !== WebSocket.OPEN) return;
@@ -61,7 +72,7 @@ function createShim(url: string, token: string | undefined, native: ModelContext
     flush();
   };
 
-  (async () => {
+  const connect = async () => {
     let t = token;
     if (!t) {
       try {
@@ -72,12 +83,27 @@ function createShim(url: string, token: string | undefined, native: ModelContext
       }
     }
     const wsUrl = t ? `${url}?token=${encodeURIComponent(t)}` : url;
-    ws = new WebSocket(wsUrl);
-    ws.addEventListener('open', flush);
-    ws.addEventListener('error', () =>
+    const next = new WebSocket(wsUrl);
+    ws = next;
+    next.addEventListener('open', () => {
+      if (opened) {
+        for (const scope of scopes.values()) send({ type: 'scope-register', scope });
+        for (const [id, state] of scopeContexts) send({ type: 'scope-context', id, state });
+        for (const descriptor of tools.values()) send({ type: 'register', tool: stripDescriptor(descriptor) });
+        for (const [name, state] of contexts) send({ type: 'context', name, state });
+      }
+      opened = true;
+      flush();
+    });
+    next.addEventListener('error', () =>
       console.warn('[embinder] relay ws error — is the relay running on', url, '?'),
     );
-    ws.addEventListener('message', (e) => {
+    next.addEventListener('close', () => {
+      if (ws !== next) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => void connect(), 100);
+    });
+    next.addEventListener('message', (e) => {
       const m = JSON.parse(e.data);
       // T-K: forward display-only phase events to the spotlight.
       if (PHASE_TYPES.has(m.type)) {
@@ -96,7 +122,8 @@ function createShim(url: string, token: string | undefined, native: ModelContext
           send({ type: 'result', id: m.id, error: String(error) });
         });
     });
-  })();
+  };
+  void connect();
 
   const modelContext: ModelContextSurface = {
     registerTool(descriptor, options) {
@@ -105,6 +132,7 @@ function createShim(url: string, token: string | undefined, native: ModelContext
       native?.registerTool(descriptor, options); // T-H1
       options?.signal?.addEventListener('abort', () => {
         tools.delete(descriptor.name);
+        contexts.delete(descriptor.name);
         send({ type: 'unregister', name: descriptor.name });
       });
     },
@@ -116,8 +144,12 @@ function createShim(url: string, token: string | undefined, native: ModelContext
       phaseListener = fn;
     },
     sendContext(name, state) {
+      contexts.set(name, state);
       send({ type: 'context', name, state });
     },
+    registerScope(scope) { scopes.set(scope.id, scope); send({ type: 'scope-register', scope }); },
+    sendScopeContext(id, state) { scopeContexts.set(id, state); send({ type: 'scope-context', id, state }); },
+    unregisterScope(id) { scopes.delete(id); scopeContexts.delete(id); send({ type: 'scope-unregister', id }); },
   };
 }
 

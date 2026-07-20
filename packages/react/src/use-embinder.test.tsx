@@ -280,6 +280,23 @@ describe('useEmbinder', () => {
     expect(ws.ofType('result')[0].result).toEqual({ count: 1 });
   });
 
+  it('reconnects and re-registers mounted tools after relay socket closes', async () => {
+    const { EmbinderProvider, useEmbinder } = await loadSdk();
+    function Button() {
+      const bind = useEmbinder({ name: 'add_task', description: 'x', handler: () => 'ok' });
+      return <button {...bind} />;
+    }
+    render(<EmbinderProvider chat={false}><Button /></EmbinderProvider>);
+    const first = await socket();
+    await waitFor(() => expect(first.ofType('register')).toHaveLength(1));
+    first.emit('close', {});
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
+    const second = FakeWebSocket.instances[1];
+    second.open();
+    await waitFor(() => expect(second.ofType('register')).toHaveLength(1));
+    expect((second.ofType('register')[0] as { tool: { name: string } }).tool.name).toBe('add_task');
+  });
+
   it('mounts the chat bubble by default and honors the opt-out (D-9)', async () => {
     vi.doMock('./chat/ChatBubble.js', () => ({
       ChatBubble: () => <div data-testid="bubble" />,

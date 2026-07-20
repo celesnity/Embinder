@@ -16,7 +16,13 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CapabilityDef } from './registry.js';
 
 export interface ChatDeps {
-  registry: { entries(): IterableIterator<[string, CapabilityDef]> | Array<[string, CapabilityDef]> };
+  registry: {
+    entries(): IterableIterator<[string, CapabilityDef]> | Array<[string, CapabilityDef]>;
+    selectedEntries?(session: string): Array<[string, CapabilityDef]>;
+    allEntries?(): Array<[string, CapabilityDef]>;
+    focus?(session: string, name: string): { ok: boolean; state?: unknown; error?: string };
+  };
+  onFocus?: (phase: { name: string; scopeId: string }) => void;
   runGatedCall: (
     name: string,
     args: unknown,
@@ -25,6 +31,19 @@ export interface ChatDeps {
     signal: AbortSignal,
     keepAlive?: () => void,
   ) => Promise<CallToolResult>;
+}
+
+export function executeFocus(
+  registry: NonNullable<ChatDeps['registry']>,
+  session: string,
+  name: string,
+  onFocus?: ChatDeps['onFocus'],
+): unknown {
+  const focused = registry.focus?.(session, name);
+  if (!focused?.ok) throw new Error(focused?.error ?? 'focus failed');
+  const scopeId = name.slice('focus_'.length).replaceAll('__', '/');
+  onFocus?.({ name, scopeId });
+  return focused.state ?? {};
 }
 
 // D-5: one system block per turn — the agent's whole worldview is what's on screen.
@@ -147,13 +166,16 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
 
     // Build AI SDK tools from the SAME registry, snapshotted at turn start (render-scoped).
     // execute = the SAME gate. (one gate)
+    const selected = () => deps.registry.selectedEntries?.(session) ?? [...deps.registry.entries()];
+    const all = () => deps.registry.allEntries?.() ?? selected();
     const tools = Object.fromEntries(
-      callableTools(deps.registry.entries()).map(([name, def]) => [
+      callableTools(all()).map(([name, def]) => [
         name,
         tool({
           description: def.config.description ?? name,
           inputSchema: z.object(def.config.inputSchema ?? ({} as ZodRawShape)),
           execute: async (args: unknown) => {
+            if (name.startsWith('focus_')) return executeFocus(deps.registry, session, name, deps.onFocus);
             const result = await deps.runGatedCall(
               name,
               args,
@@ -171,9 +193,10 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
 
     const result = streamText({
       model: provider(model!),
-      system: buildOnScreenBlock(deps.registry.entries()),
+      system: buildOnScreenBlock(selected()),
       messages: await convertToModelMessages(messages as never),
       tools,
+      prepareStep: () => ({ activeTools: callableTools(selected()).map(([name]) => name), system: buildOnScreenBlock(selected()) }),
       stopWhen: stepCountIs(6),
       // Surface the real upstream failure server-side; the browser only ever sees
       // the AI SDK's generic "An error occurred." in the stream.

@@ -109,16 +109,12 @@ export function isContextOnly(def: CapabilityDef): boolean {
 }
 
 const registry = new CapabilityRegistry({
-  onAdd: (name, def) => {
-    if (isContextOnly(def)) return;
-    for (const s of sessions.values()) registerGatedTool(s.server, s.tools, name, def);
+  onAdd: () => {
+    for (const [id, s] of sessions) syncSessionTools(id, s);
   },
   onRemove: (name) => {
     cancelByTool(name); // pending approvals for an off-screen capability are moot
-    for (const s of sessions.values()) {
-      s.tools.get(name)?.remove();
-      s.tools.delete(name);
-    }
+    for (const [id, s] of sessions) syncSessionTools(id, s);
     console.log(`[embinder] capability left the screen: ${name}`);
   },
   // A remount within the grace window re-delivers calls the old mount never answered.
@@ -139,10 +135,15 @@ async function runGatedCall(
   signal: AbortSignal,
   keepAlive?: () => void,
 ): Promise<CallToolResult> {
+  const scope = registry.reserveScopedAction(session ?? '', name);
+  if (!scope.ok) return { isError: true, content: [{ type: 'text', text: scope.error! }] };
   const id = randomUUID(); // one id for the whole lifecycle (T-K2)
   const risk = riskOf(policy, name, destructive);
   const canonicalPreview = canonicalize(args);
 
+  // Every real action gets a visible preflight focus. This is display-only: the
+  // gate and browser call begin immediately after it, while UI animation lingers.
+  emitToApp('focus', { name, argsPreview: canonicalPreview });
   // T-K: tell the app what's about to happen (display only — app executes nothing until `call`).
   emitToApp('intent', { id, name, argsPreview: canonicalPreview });
   emitToApp('gate', { id, status: risk === 'destructive' ? 'awaiting' : 'auto' });
@@ -162,6 +163,13 @@ async function runGatedCall(
   } catch (err) {
     if (risk === 'destructive') emitToApp('decided', { id, decision: 'denied' });
     throw err;
+  } finally {
+    if (scope.scoped) {
+      const sessionId = session ?? '';
+      registry.settleScopedAction(sessionId);
+      const target = sessions.get(sessionId);
+      if (target) syncSessionTools(sessionId, target);
+    }
   }
 }
 
@@ -192,6 +200,23 @@ function registerGatedTool(
   tools.set(name, tool);
 }
 
+function syncSessionTools(sessionId: string, session: Session) {
+  const selected = new Map(registry.selectedEntries(sessionId).filter(([, def]) => !isContextOnly(def)));
+  for (const [name, tool] of session.tools) if (!selected.has(name)) { tool.remove(); session.tools.delete(name); }
+  for (const [name, def] of selected) {
+    if (name.startsWith('focus_')) {
+      if (session.tools.has(name)) continue;
+      session.tools.set(name, session.server.registerTool(name, def.config, async (_args, extra) => {
+        const result = registry.focus(extra.sessionId ?? sessionId, name);
+        if (!result.ok) return { isError: true, content: [{ type: 'text', text: result.error }] };
+        syncSessionTools(extra.sessionId ?? sessionId, session);
+        emitToApp('focus', { name, scopeId: name.slice(6).replaceAll('__', '/') });
+        return { content: [{ type: 'text', text: JSON.stringify(result.state) }] };
+      }));
+    } else if (!session.tools.has(name)) registerGatedTool(session.server, session.tools, name, def);
+  }
+}
+
 // Build a new server pre-loaded with __gmc_ready + all currently-registered tools.
 function buildSessionServer(): { server: McpServer; tools: Session['tools'] } {
   const server = new McpServer({ name: 'embinder-relay', version: '0.1.0' });
@@ -203,9 +228,7 @@ function buildSessionServer(): { server: McpServer; tools: Session['tools'] } {
     content: [{ type: 'text', text: 'ready' }],
   }));
   primer.disable();
-  for (const [name, def] of registry.entries()) {
-    if (!isContextOnly(def)) registerGatedTool(server, tools, name, def);
-  }
+  // Session-specific tools sync after transport assigns its session id.
   return { server, tools };
 }
 
@@ -267,7 +290,7 @@ app.get('/approver-token', (_req: Request, res: Response) => {
 // T-E1/E2: approval surface — /api/pending (SSE) + /api/decide.
 mountApprovalRoutes(app, APPROVER_TOKEN);
 // T-CB3: relay-hosted chat loop (Arch A). Reuses the registry + runGatedCall (one gate).
-mountChatRoute(app, { registry, runGatedCall });
+mountChatRoute(app, { registry, runGatedCall, onFocus: (phase) => emitToApp('focus', phase) });
 // D-9: bubble config lives in relay env, beside the key.
 mountChatConfigRoute(app, { baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL });
 enableCliApprovals();
@@ -301,11 +324,15 @@ wss.on('connection', (ws, req) => {
             annotations: m.tool.annotations,
           },
           destructive: Boolean(m.tool.annotations?.destructiveHint),
+          scopeId: typeof m.tool.annotations?.embinderScope === 'string' ? m.tool.annotations.embinderScope : undefined,
         };
         registry.register(m.tool.name, def);
         console.log(`[embinder] capability registered: ${m.tool.name}`);
         break;
       }
+      case 'scope-register': registry.registerScope(m.scope); for (const [id, s] of sessions) syncSessionTools(id, s); break;
+      case 'scope-context': registry.setScopeContext(m.id, m.state); break;
+      case 'scope-unregister': registry.unregisterScope(m.id); for (const [id, s] of sessions) syncSessionTools(id, s); break;
       case 'unregister':
         registry.unregister(m.name); // D-6: session removal happens on grace expiry
         break;
@@ -340,6 +367,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (id) => {
         sessions.set(id, { server, transport: transport!, tools });
+        syncSessionTools(id, sessions.get(id)!);
         console.log(`[embinder] mcp session ${id.slice(0, 8)} connected`);
       },
     });

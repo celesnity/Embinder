@@ -356,8 +356,8 @@ export function createGhostCursor(): GhostCursor {
     idleTimer = undefined;
   };
 
-  function goTarget(name: string, itemId?: string) {
-    const t = resolveAgentTarget(name, itemId);
+  function goTarget(name: string, itemId?: string, scopeId?: string) {
+    const t = resolveAgentTarget(name, itemId, scopeId);
     target = t;
     if (t) {
       const p = pointAt(t);
@@ -396,6 +396,13 @@ export function createGhostCursor(): GhostCursor {
           el.classList.remove('is-pending', 'is-denied');
           el.classList.add('is-working');
           goTarget(m.name, active.itemId);
+          break;
+
+        case 'focus':
+          if (!m.name) break;
+          cancelIdle(); stopWander(); el.classList.add('is-working');
+          goTarget(m.name, (m.argsPreview as { id?: string } | undefined)?.id, m.scopeId);
+          resumeIdle(700);
           break;
 
         case 'gate':

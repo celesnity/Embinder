@@ -8,10 +8,11 @@ import 'driver.js/dist/driver.css';
 import { resolveAgentTarget } from './resolve-target.js';
 
 export interface PhaseMessage {
-  type: 'intent' | 'gate' | 'decided' | 'call' | 'done';
+  type: 'intent' | 'gate' | 'decided' | 'call' | 'done' | 'focus';
   id?: string;
   name?: string;
   argsPreview?: unknown;
+  scopeId?: string;
   status?: 'auto' | 'awaiting';
   decision?: 'approved' | 'denied';
 }
@@ -132,7 +133,7 @@ export function createSpotlight(decideBase?: string): Spotlight {
   function show(
     name: string,
     description: string,
-    opts: { lock?: boolean; klass?: string; decide?: string; itemId?: string } = {},
+    opts: { lock?: boolean; klass?: string; decide?: string; itemId?: string; scopeId?: string } = {},
   ) {
     cancelClear();
     const decideId = opts.decide;
@@ -154,8 +155,10 @@ export function createSpotlight(decideBase?: string): Spotlight {
             }
           : undefined,
     });
+    const element = resolveAgentTarget(name, opts.itemId, opts.scopeId);
+    if (!element) return;
     d.highlight({
-      element: resolveAgentTarget(name, opts.itemId),
+      element,
       popover: {
         title: humanize(name),
         description,
@@ -175,6 +178,16 @@ export function createSpotlight(decideBase?: string): Spotlight {
           if (!m.id || !m.name) break;
           active = { id: m.id, name: m.name, gated: false, itemId: (m.argsPreview as { id?: string } | undefined)?.id };
           say(`Agent requesting ${humanize(m.name)}`);
+          break;
+
+        case 'focus':
+          if (!m.name) break;
+          show(m.name, `<span class="gmc-kicker">Focused</span>Showing this region to the agent.`, {
+            scopeId: m.scopeId,
+            itemId: (m.argsPreview as { id?: string } | undefined)?.id,
+          });
+          scheduleClear(700);
+          say(`Agent focused ${humanize(m.name)}`);
           break;
 
         case 'gate':

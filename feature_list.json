@@ -1,6 +1,6 @@
 {
   "project": "Embinder",
-  "updated": "2026-07-19",
+  "updated": "2026-07-20",
   "status_legend": [
     "not_started",
     "in_progress",
@@ -9,6 +9,22 @@
   ],
   "rule": "Only one feature may be in_progress at a time. 'passing' requires verification evidence produced on the current host.",
   "features": [
+    {
+      "id": "F-CONTEXT-PROOFING",
+      "priority": 6,
+      "area": "react-sdk + relay",
+      "title": "Hierarchical context proofing with one-action focus scopes",
+      "user_visible_behavior": "An agent discovers developer-declared nested UI regions through focus tools, sees only that scope's semantic context and actions, then returns to its parent after one scoped action.",
+      "status": "in_progress",
+      "verification": [
+        "npm test --workspace @embinder/react",
+        "npm test --workspace @embinder/relay",
+        "npm run typecheck",
+        "npm run e2e"
+      ],
+      "evidence": "2026-07-20 current host: npm test --workspace @embinder/react -> 15 files/52 tests PASS; npm test --workspace @embinder/relay -> 4 files/15 tests PASS; npm run typecheck -> exit 0; npm run e2e -> all SC assertions including context focus PASS, E2E + GATE GREEN. Includes chat-focus relay event, provider reconnect, action-preflight focus, and semantic DOM anchors for read/item tools.",
+      "notes": "User-directed work. Design and implementation plan committed in 40fd288; code review explicitly deferred by user."
+    },
     {
       "id": "F-AGENTFORM",
       "priority": 6,

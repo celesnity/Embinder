@@ -20,6 +20,31 @@ The progress log. Every session reads this first and updates it last.
 
 ## Session Record
 
+### 2026-07-20 - Context proofing focus scopes
+
+- **Scope:** added `AgentScope` to `@embinder/react`; declared semantic summaries and scope ancestry reach the relay without DOM scraping. Descendant tools inherit `embinderScope` automatically.
+- **Relay:** added per-session scope tree, virtual `focus_<scope>` tools, one-action reservations, stale/out-of-scope rejection before browser forwarding, parent restoration after settled scoped action, and selected tool filtering for MCP/chat. Chat refreshes active tools/system context through AI SDK `prepareStep`.
+- **Visualization:** focus phases drive the existing driver.js spotlight and ghost cursor to `[data-embinder-scope]`; focus does not lock UI, while destructive action approval stays unchanged.
+- **Verification:** `npm test` -> React 15 files/50 tests PASS; relay 4 files/14 tests PASS. `npm run typecheck` -> exit 0. `npm run e2e` -> SC-focus root hidden child, semantic focus result, normal gate, and parent restore PASS; `E2E + GATE GREEN`.
+- **Review:** user requested review later. No implementation commit yet. Existing unrelated `.gitignore`, `AGENTS.md`, and `skills-lock.json` changes remain untouched.
+
+### 2026-07-20 - Fix chat focus visualization
+
+- **Root cause:** MCP focus emitted a relay-to-app `focus` phase, but the resident `/chat` focus executor only changed the relay scope lease. Driver.js and ghost cursor therefore received no focus phase during chat use.
+- **Fix:** `executeFocus` emits `{name, scopeId}` through an injected `onFocus` callback; server relays it to the app. Added regression test.
+- **Verification:** `npm test --workspace @embinder/relay -- src/chat.test.ts` -> 7 tests PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> all assertions PASS, `E2E + GATE GREEN`.
+
+### 2026-07-20 - Reconnect after relay restart
+
+- **Root cause:** provider created one WebSocket and never reconnected after the relay was restarted; chat then saw no app tools and reported an application connection error.
+- **Fix:** reconnect after close and rehydrate scope registrations, scope summaries, tool registrations, and bound context snapshots. Regression test confirms a second socket re-registers mounted tools.
+- **Current verification:** React reconnect test 11/11 PASS; chat focus test 7/7 PASS; typecheck exit 0. Full fixed-port e2e is recorded below.
+
+### 2026-07-20 - Action preflight and focus target proof
+
+- **Fix:** every non-virtual action emits a display-only focus phase before gate processing; exact task-card targets resolve from `args.id`. Read-only collection tools now declare semantic focus anchors, so Driver.js and the ghost cursor do not fall back to a centered empty overlay.
+- **Verification:** `npm test --workspace @embinder/react` -> 15 files/52 tests PASS; `npm test --workspace @embinder/relay` -> 4 files/15 tests PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> all assertions PASS, `E2E + GATE GREEN`.
+
 ### 2026-07-19 - AgentForm Task 3 verification and evidence
 
 - **AgentForm scope:** verified the completed `@embinder/react` AgentForm component and its integration without changing implementation.

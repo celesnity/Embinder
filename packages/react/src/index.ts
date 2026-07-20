@@ -17,6 +17,11 @@ export function grabAnchor(name: string): { 'data-embinder-tool': string } {
   return { 'data-embinder-tool': name };
 }
 
+/** Anchor a semantic read-only action to its relevant visible UI region. */
+export function grabFocusAnchor(...names: string[]): { 'data-embinder-focus-for': string } {
+  return { 'data-embinder-focus-for': names.join(' ') };
+}
+
 // Agent-driven UI action helpers (drag / drop / scroll / routing).
 export { useScrollTarget } from './actions/useScrollTarget.js';
 export type { ScrollTargetConfig } from './actions/useScrollTarget.js';
@@ -49,3 +54,5 @@ export { AgentList } from './components/AgentList.js';
 export type { AgentListProps, AgentAction } from './components/AgentList.js';
 export { AgentForm } from './components/AgentForm.js';
 export type { AgentFormProps } from './components/AgentForm.js';
+export { AgentScope } from './components/AgentScope.js';
+export type { AgentScopeProps } from './components/AgentScope.js';

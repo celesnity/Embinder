@@ -21,3 +21,5 @@ export { AgentList } from './AgentList.js';
 export type { AgentListProps, AgentAction } from './AgentList.js';
 export { AgentForm } from './AgentForm.js';
 export type { AgentFormProps } from './AgentForm.js';
+export { AgentScope } from './AgentScope.js';
+export type { AgentScopeProps } from './AgentScope.js';

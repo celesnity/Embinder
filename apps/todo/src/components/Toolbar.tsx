@@ -1,5 +1,5 @@
 import { Columns3, List as ListIcon, CalendarDays, X, Undo2, CheckCheck, type LucideIcon } from 'lucide-react';
-import { grabAnchor, AgentButton, AgentInput } from '@embinder/react';
+import { grabAnchor, grabFocusAnchor, AgentButton, AgentInput } from '@embinder/react';
 import {
   type Action, type State, type ViewMode, type Priority, type StatusFilter,
   PRIORITIES, boardStats, allTags,
@@ -42,6 +42,7 @@ export function Toolbar({ state, dispatch }: { state: State; dispatch: (a: Actio
           name="set_search"
           description="The board search box. Set it to filter visible tasks by matching text; the current query is reported as live state."
           className="tb-search"
+          {...grabFocusAnchor('search_tasks')}
           placeholder="Search tasks…"
           value={f.search}
           onChange={(e) => dispatch({ type: 'SET_FILTER', patch: { search: e.target.value } })}
@@ -53,7 +54,7 @@ export function Toolbar({ state, dispatch }: { state: State; dispatch: (a: Actio
         </div>
       </div>
 
-      <div className="tb-row wrap">
+      <div className="tb-row wrap" {...grabFocusAnchor('list_tags')}>
         <span className="tb-label">Status</span>
         {(['all', 'active', 'done'] as StatusFilter[]).map((s) => (
           <button
