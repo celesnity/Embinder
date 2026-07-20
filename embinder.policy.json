@@ -15,6 +15,10 @@
     "list_pages": "read",
     "where_am_i": "read",
     "export_board": "read",
+    "pocketbase_screen": "read",
+    "pocketbase_navigate": "read",
+    "pocketbase_refresh": "read",
+    "pocketbase_list_records": "read",
 
     "add_task": "write",
     "edit_task": "write",
@@ -34,6 +38,9 @@
     "go_to_page": "write",
     "scroll_to": "write",
     "undo": "write",
+    "pocketbase_create_record": "write",
+    "pocketbase_update_record": "write",
+    "restore_task": "write",
 
     "delete_task": "write",
     "clear_completed": "write",
@@ -42,7 +49,9 @@
 
     "delete_all_tasks": "destructive",
     "bulk_delete": "destructive",
-    "import_board": "destructive"
+    "import_board": "destructive",
+    "purge_archive": "destructive",
+    "pocketbase_delete_record": "destructive"
   },
   "rateLimit": {
     "perToolPerMin": 60

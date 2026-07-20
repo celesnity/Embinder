@@ -1,144 +1,217 @@
-// embinder-bridge.js — the framework-agnostic Embinder browser bridge.
+// Framework-neutral Embinder browser bridge for Vue, Svelte, Angular, Solid,
+// vanilla JavaScript, and client-hydrated SSR applications.
 //
-// This is the ONE integration path for any web frontend that is NOT React
-// (Vue, Svelte, Angular, Solid, vanilla, SSR-hydrated). React apps use
-// <EmbinderProvider> from @embinder/react instead — see integration.md.
-//
-// It is a faithful reduction of `createShim` + `ensureShim` in
-// packages/react/src/provider.tsx, with the React parts removed (no hooks, no
-// JSX, no StrictMode singleton timing, no spotlight/chat). Nothing about the
-// Embinder protocol requires React — the relay's ws `/app` handler
-// (packages/relay/src/server.ts) dispatches on a bare `m.type` switch and never
-// inspects the framework. The wire protocol IS the entire API.
-//
-// ── THE #1 CORRECTNESS LANDMINE ──────────────────────────────────────────────
-// On the wire, `inputSchema` must be JSON SCHEMA, e.g.
-//     { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
-// because the relay converts it with `toZodShape` (server.ts), which only reads
-// `properties` / `required`. The React path writes a Zod raw shape
-// ( { text: z.string() } ) ONLY because `useWebMCP` converts it for you.
-// A direct-wire client that sends the Zod form registers a BROKEN schema and
-// fails silently. Send JSON Schema here.
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Works in a browser (global WebSocket/fetch) and in Node >= 22 (which also has
-// global WebSocket + fetch), so it can be imported by an end-to-end test.
+// Install once at the client entry. Tool handlers stay in the browser. The
+// bridge reconnects, replays tools before context, exposes connection state,
+// forwards lifecycle phases to visual drivers, and executes `call` messages.
 
-const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
+const DEFAULT_URL = "ws://127.0.0.1:7331/app";
+const PHASE_TYPES = new Set(["intent", "gate", "decided", "call", "done"]);
 
-// Display-only phase events the relay may push to the app tab. A headless bridge
-// ignores them; a UI can hook them for a spotlight. (Mirrors PHASE_TYPES in provider.tsx.)
-const PHASE_TYPES = new Set(['intent', 'gate', 'decided', 'done']);
-
-// ws://…/app  ->  http://…    (mirrors httpBaseFrom in provider.tsx)
 function httpBaseFrom(wsUrl) {
-  return wsUrl.replace(/^ws/, 'http').replace(/\/app$/, '');
+    return wsUrl.replace(/^ws/, "http").replace(/\/app$/, "");
 }
 
-// The exact JSON that goes over the wire in a `register` message. The handler
-// (`execute`) is deliberately NOT sent — it stays in the browser. (= stripDescriptor.)
-function stripDescriptor(d) {
-  return {
-    name: d.name,
-    title: d.title,
-    description: d.description,
-    inputSchema: d.inputSchema, // JSON Schema — see landmine above
-    annotations: d.annotations, // { title?, readOnlyHint?, destructiveHint? }
-  };
+function stripDescriptor(descriptor) {
+    return {
+        name: descriptor.name,
+        title: descriptor.title,
+        description: descriptor.description,
+        inputSchema: descriptor.inputSchema,
+        annotations: descriptor.annotations,
+    };
 }
 
 /**
- * Install the Embinder relay bridge once, at app load.
- *
- * @param {object} [opts]
- * @param {string} [opts.url]          Relay ws endpoint. Default ws://127.0.0.1:7331/app
- * @param {string} [opts.token]        Explicit app token; otherwise fetched from GET /app-token.
- * @param {boolean} [opts.exposeGlobal] Also install as `document.modelContext` (W3C WebMCP
- *                                       surface) so standards code finds it. Default true in a
- *                                       browser, ignored where `document` is absent (Node).
- * @returns {{ registerTool: Function, close: Function, whenOpen: Promise<void> }}
+ * @param {object} [options]
+ * @param {string} [options.url]
+ * @param {string} [options.token]
+ * @param {boolean} [options.exposeGlobal]
  */
-export function installEmbinderBridge(opts = {}) {
-  const url = opts.url || DEFAULT_URL;
-  const exposeGlobal = opts.exposeGlobal !== false;
+export function installEmbinderBridge(options = {}) {
+    const url = options.url || DEFAULT_URL;
+    const tools = new Map();
+    const contexts = new Map();
+    const resultOutbox = [];
+    const phaseListeners = new Set();
+    const connectionListeners = new Set();
+    let socket;
+    let reconnectTimer;
+    let reconnectAttempt = 0;
+    let closed = false;
+    let resolveFirstOpen;
 
-  const tools = new Map();   // name -> { ...descriptor, execute }
-  const outbox = [];         // buffered until the socket opens
-  let ws;
-
-  const flush = () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      for (const msg of outbox.splice(0)) ws.send(msg);
-    }
-  };
-  const send = (payload) => {
-    outbox.push(JSON.stringify(payload));
-    flush();
-  };
-
-  // Open the socket (token fetched async if not supplied), buffering registrations meanwhile.
-  const whenOpen = (async () => {
-    let t = opts.token;
-    if (!t) {
-      try {
-        const r = await fetch(`${httpBaseFrom(url)}/app-token`);
-        t = (await r.json()).token;
-      } catch {
-        console.warn('[embinder] could not fetch /app-token — is the relay running?');
-      }
-    }
-    const wsUrl = t ? `${url}?token=${encodeURIComponent(t)}` : url;
-    ws = new WebSocket(wsUrl);
-
-    ws.addEventListener('open', flush);
-    ws.addEventListener('error', () =>
-      console.warn('[embinder] relay ws error — is the relay running on', url, '?'),
-    );
-    ws.addEventListener('message', (e) => {
-      const m = JSON.parse(typeof e.data === 'string' ? e.data : String(e.data));
-      if (PHASE_TYPES.has(m.type)) return; // display-only; ignore in a headless bridge
-      if (m.type !== 'call') return;
-      // Run the local handler and post the result back (or the error).
-      Promise.resolve(tools.get(m.name)?.execute(m.args))
-        .then((result) => send({ type: 'result', id: m.id, result }))
-        .catch((error) => send({ type: 'result', id: m.id, error: String(error) }));
+    const whenOpen = new Promise((resolve) => {
+        resolveFirstOpen = resolve;
     });
 
-    await new Promise((resolve) => {
-      if (ws.readyState === WebSocket.OPEN) return resolve();
-      ws.addEventListener('open', () => resolve(), { once: true });
-    });
-  })();
+    function emitConnection(state, detail) {
+        for (const listener of connectionListeners) listener({ state, detail });
+    }
 
-  // The registration surface (= the shim's modelContext.registerTool).
-  const registerTool = (descriptor) => {
-    // descriptor: { name, title?, description?, inputSchema? (JSON Schema),
-    //               annotations?, execute(args) -> result|Promise }
-    tools.set(descriptor.name, descriptor);
-    send({ type: 'register', tool: stripDescriptor(descriptor) });
-    return {
-      // Call to remove the tool (sends `unregister`).
-      unregister() {
-        tools.delete(descriptor.name);
-        send({ type: 'unregister', name: descriptor.name });
-      },
+    function send(payload) {
+        if (socket?.readyState !== WebSocket.OPEN) return false;
+        socket.send(JSON.stringify(payload));
+        return true;
+    }
+
+    // Ordering matters: the relay cannot attach context to a pointer/tool it
+    // has not registered yet.
+    function replayState() {
+        for (const descriptor of tools.values()) {
+            send({ type: "register", tool: stripDescriptor(descriptor) });
+        }
+        for (const [name, state] of contexts) {
+            send({ type: "context", name, state });
+        }
+        for (const result of resultOutbox.splice(0)) send(result);
+    }
+
+    function scheduleReconnect(error) {
+        if (closed || reconnectTimer) return;
+        const delay = Math.min(1000 * (2 ** reconnectAttempt++), 15000);
+        emitConnection("retrying", { delay, error: error?.message || String(error || "") });
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = undefined;
+            connect();
+        }, delay);
+    }
+
+    async function connect() {
+        if (closed) return;
+        emitConnection("connecting");
+
+        let token = options.token;
+        if (!token) {
+            try {
+                const response = await fetch(`${httpBaseFrom(url)}/app-token`, { cache: "no-store" });
+                if (!response.ok) throw new Error(`token request failed (${response.status})`);
+                token = (await response.json()).token;
+                if (!token) throw new Error("token response was empty");
+            } catch (error) {
+                scheduleReconnect(error);
+                return;
+            }
+        }
+
+        socket = new WebSocket(`${url}?token=${encodeURIComponent(token)}`);
+        socket.addEventListener("open", () => {
+            reconnectAttempt = 0;
+            replayState();
+            emitConnection("open");
+            resolveFirstOpen?.();
+            resolveFirstOpen = undefined;
+        });
+        socket.addEventListener("message", handleMessage);
+        socket.addEventListener("close", () => scheduleReconnect(new Error("socket closed")));
+        socket.addEventListener("error", () => socket?.close());
+    }
+
+    function handleMessage(event) {
+        let message;
+        try {
+            message = JSON.parse(typeof event.data === "string" ? event.data : String(event.data));
+        } catch (error) {
+            console.warn("[embinder] ignored invalid relay message", error);
+            return;
+        }
+
+        // `call` is both a visual phase and the instruction to execute. Notify
+        // visual listeners, but do not return before running the handler.
+        if (PHASE_TYPES.has(message.type)) {
+            for (const listener of phaseListeners) listener(message);
+            if (message.type !== "call") return;
+        }
+
+        const descriptor = tools.get(message.name);
+        if (!descriptor?.execute) {
+            const payload = {
+                type: "result",
+                id: message.id,
+                error: `Capability ${message.name} is not mounted in the current page state`,
+            };
+            if (!send(payload)) resultOutbox.push(payload);
+            return;
+        }
+
+        Promise.resolve(descriptor.execute(message.args || {}))
+            .then((result) => {
+                const payload = { type: "result", id: message.id, result };
+                if (!send(payload)) resultOutbox.push(payload);
+            })
+            .catch((error) => {
+                const payload = {
+                    type: "result",
+                    id: message.id,
+                    error: String(error?.message || error),
+                };
+                if (!send(payload)) resultOutbox.push(payload);
+            });
+    }
+
+    const api = {
+        whenOpen,
+
+        registerTool(descriptor, registerOptions = {}) {
+            if (!descriptor?.name) throw new Error("Embinder tool name is required");
+            if (typeof descriptor.execute !== "function"
+                && !descriptor.annotations?.embinderContextOnly) {
+                throw new Error(`Embinder tool ${descriptor.name} needs an execute handler`);
+            }
+
+            tools.set(descriptor.name, descriptor);
+            send({ type: "register", tool: stripDescriptor(descriptor) });
+
+            const unregister = () => {
+                if (tools.get(descriptor.name) !== descriptor) return;
+                tools.delete(descriptor.name);
+                contexts.delete(descriptor.name);
+                send({ type: "unregister", name: descriptor.name });
+            };
+            registerOptions.signal?.addEventListener("abort", unregister, { once: true });
+            return { unregister };
+        },
+
+        setContext(name, state) {
+            contexts.set(name, state);
+            send({ type: "context", name, state });
+        },
+
+        onPhase(listener) {
+            phaseListeners.add(listener);
+            return () => phaseListeners.delete(listener);
+        },
+
+        onConnection(listener) {
+            connectionListeners.add(listener);
+            listener({ state: socket?.readyState === WebSocket.OPEN ? "open" : "connecting" });
+            return () => connectionListeners.delete(listener);
+        },
+
+        isOpen() {
+            return socket?.readyState === WebSocket.OPEN;
+        },
+
+        close() {
+            closed = true;
+            clearTimeout(reconnectTimer);
+            socket?.close();
+            emitConnection("closed");
+        },
     };
-  };
 
-  // Standards compatibility: expose as document.modelContext (as Embinder does via
-  // Object.defineProperty in ensureShim). The relay only needs the wire messages.
-  if (exposeGlobal && typeof document !== 'undefined') {
-    Object.defineProperty(document, 'modelContext', {
-      value: { registerTool: (d) => registerTool(d) },
-      configurable: true,
-    });
-  }
+    if (options.exposeGlobal !== false && typeof document !== "undefined") {
+        Object.defineProperty(document, "modelContext", {
+            value: {
+                registerTool: (descriptor, registerOptions) =>
+                    api.registerTool(descriptor, registerOptions),
+            },
+            configurable: true,
+        });
+    }
 
-  return {
-    registerTool,
-    whenOpen,
-    close() { try { ws?.close(); } catch { /* ignore */ } },
-  };
+    connect();
+    return api;
 }
 
 export default installEmbinderBridge;

@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "dprint fmt && vite build"
+        "build": "dprint fmt && vite build",
+        "test": "node --test src/embinder/*.test.js"
     },
     "dependencies": {
         "leaflet": "^1.9.4",

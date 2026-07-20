@@ -77,6 +77,8 @@ import "./collections/oauth2/appleOptions";
 import "./logs/logsSettingsModal";
 import "./logs/logPreviewModal";
 import { appHeader } from "./base/appHeader";
+import { mountPocketBaseEmbinderChat } from "./embinder/chat";
+import { installPocketBaseEmbinder } from "./embinder/integration";
 import { initRouter } from "./router";
 
 // tag proxy wrapper to register the global pbEvent mount:/unmount: events
@@ -145,3 +147,6 @@ document.body.appendChild(t.script({
         app.store._ready = true;
     },
 }));
+
+const embinder = installPocketBaseEmbinder({ url: import.meta.env.PB_EMBINDER_URL });
+mountPocketBaseEmbinderChat(embinder.bridge);

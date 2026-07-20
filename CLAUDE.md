@@ -5,6 +5,23 @@ web app through declared tools, with a **server-side human approval gate** and a
 action **spotlight**. Monorepo (npm workspaces): `@embinder/relay` (MCP server + gate),
 `@embinder/react` (app SDK), `apps/todo` (reference app).
 
+## Mandatory reading gate for every product integration
+
+Before planning or editing any use of this SDK in another product/platform, personally read these
+files completely; do not delegate the reading to a subagent:
+
+1. `docs/embinder-skill/SKILL.md`
+2. `docs/embinder-skill/references/platform-playbook.md`
+3. `docs/embinder-skill/references/architecture.md`
+4. `docs/embinder-skill/references/integration.md`
+5. `docs/embinder-skill/references/embinder-bridge.js`
+6. The target product's instructions, developer docs, routes, permissions, setup, and tests.
+
+If a read is truncated, continue to EOF. Do not modify implementation code until the gate is
+complete. In the first progress update, list what was read, give the stack verdict and chosen
+integration path, and identify the capability matrix that will define full page/function coverage.
+Follow the skill's test loop, completion gate, animation requirements, and final access-rights table.
+
 ## Before you write any code (every session)
 
 1. Read **`claude-progress.md`** -> "Current Verified State". That is the single source of truth.

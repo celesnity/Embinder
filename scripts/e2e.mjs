@@ -82,9 +82,14 @@ let nextId = 1;
 let muteRestore = false; // when true, restore_task calls go unanswered (unmount-mid-call tests)
 
 // --- boot relay -------------------------------------------------------------
-const relay = spawn('npx', ['tsx', 'packages/relay/src/server.ts'], {
+const relay = spawn(process.execPath, ['--import', 'tsx', 'packages/relay/src/server.ts'], {
   stdio: ['ignore', 'pipe', 'inherit'],
-  env: { ...process.env, LLM_BASE_URL: 'http://127.0.0.1:4242/v1', LLM_MODEL: 'demo-model' },
+  env: {
+    ...process.env,
+    LLM_BASE_URL: 'http://127.0.0.1:4242/v1',
+    LLM_MODEL: 'demo-model',
+    GMC_INLINE_APPROVAL: '0',
+  },
 });
 await new Promise((resolve, reject) => {
   const t = globalThis.setTimeout(() => reject(new Error('relay did not start in 10s')), 10_000);
@@ -156,7 +161,7 @@ try {
   const unreg = (name) => send({ type: 'unregister', name });
 
   // Board page (like BoardPage mounting): context-only pointer + callable capabilities.
-  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks'];
+  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks', 'bulk_delete'];
   function mountBoard() {
     reg('task_board', { type: 'object', properties: {} }, { embinderContextOnly: true });
     reg('add_task', { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, {});
@@ -164,6 +169,7 @@ try {
     reg('edit_task', { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } }, required: ['id', 'text'] }, {});
     reg('delete_task', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
     reg('delete_all_tasks', { type: 'object', properties: {} }, { destructiveHint: true });
+    reg('bulk_delete', { type: 'object', properties: { ids: { type: 'array' } }, required: ['ids'] }, { destructiveHint: true });
     pushBoardContext();
   }
   const ARCHIVE_TOOLS = ['restore_task', 'purge_archive'];
@@ -225,10 +231,10 @@ try {
   await badP.catch(() => {});
 
   // --- fidelity: hidden unicode flagged, canonical executes (AC-5) ---------
-  const tamperP = client.callTool({ name: 'delete_task', arguments: { id: 't1​​' } });
+  const tamperP = client.callTool({ name: 'bulk_delete', arguments: { ids: ['t1​​'] } });
   const pend4 = await firstPending();
   assert(pend4 && pend4.tampered === true, 'SC-6 tampered args flagged (raw ≠ canonical)');
-  assert(pend4.canonical.id === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
+  assert(pend4.canonical.ids[0] === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
   await decide(pend4.id, false);
   await tamperP.catch(() => {});
 
@@ -343,6 +349,16 @@ try {
   });
   assert(pre.status === 204, `CORS preflight -> 204 (got ${pre.status})`);
   assert(pre.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'preflight echoes the app origin');
+
+  const pocketBasePre = await fetch(`${BASE}/chat`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'http://127.0.0.1:8090', 'Access-Control-Request-Method': 'POST' },
+  });
+  assert(pocketBasePre.status === 204, `PocketBase CORS preflight -> 204 (got ${pocketBasePre.status})`);
+  assert(
+    pocketBasePre.headers.get('access-control-allow-origin') === 'http://127.0.0.1:8090',
+    'preflight echoes the PocketBase origin',
+  );
 } finally {
   await client?.close().catch(() => {});
   await client2?.close().catch(() => {});

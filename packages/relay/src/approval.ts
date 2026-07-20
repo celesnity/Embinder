@@ -9,7 +9,7 @@ import { createInterface } from 'node:readline';
 export function stripInvisible(s: string): string {
   return s
     .normalize('NFC')
-    .replace(/[​-‍﻿‪-‮⁦-⁩]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF\u202A-\u202E\u2066-\u2069]/g, '')
     .replace(/[\u{E0000}-\u{E007F}]/gu, '');
 }
 

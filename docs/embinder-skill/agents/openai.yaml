@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Embinder"
+  short_description: "Make any browser product fully AI-native"
+  default_prompt: "Use $embinder, first read every mandatory skill reference through EOF, then inventory this product, integrate every page and function, and keep testing until the browser capability matrix passes."

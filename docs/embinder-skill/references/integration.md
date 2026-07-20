@@ -25,12 +25,15 @@ import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <EmbinderProvider url="ws://127.0.0.1:7331/app" viz chat={{ baseURL: 'http://127.0.0.1:1234/v1', model: 'qwen2.5-7b-instruct' }}>
+    <EmbinderProvider url="ws://127.0.0.1:7331/app" viz chat={{}}>
       <App />
     </EmbinderProvider>
   </StrictMode>,
 );
 ```
+
+Configure `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_KEY` beside the relay. Keep model endpoints and
+keys out of product code unless the deployment explicitly requires an override.
 
 `EmbinderProviderProps`:
 - `url?` — relay ws endpoint (default `ws://127.0.0.1:7331/app`).
@@ -207,10 +210,16 @@ that bites React devs going direct-wire:
 
 ## Verify your integration
 
-- `npm run typecheck` → exit 0.
-- `npm run e2e` → 17/17 PASS ("E2E + GATE GREEN") — the full wire protocol + gate + security +
-  chat, headless.
-- `npm run dev`, then in the app tab open the chat bubble or connect an MCP client; trigger a
-  `write` (executes immediately) and a `destructive` action (pauses); approve it at
-  `http://127.0.0.1:7331/approve`; confirm the row appears in `audit.jsonl`.
-- Or run the whole baseline at once: `.\init.ps1`.
+Do not stop at the SDK baseline. Follow the complete capability-matrix and real-browser loop in
+`platform-playbook.md`.
+
+- Run the target product's format/lint, typecheck, build, and existing tests.
+- Run `npm run e2e` for the relay protocol, gate, security, context, and chat baseline.
+- In the target's served browser page, prove connection/readiness, page-scoped registration,
+  context, navigation, every declared action, persistence after refresh, and handler errors.
+- Prove destructive denial without mutation and approval with exactly one mutation; confirm audit.
+- Verify mascot, ghost cursor, spotlight, waiting/approved/denied/running/done phases, responsive
+  layout, and reduced motion on the target platform.
+- Test product-before-relay, relay restart, route changes, login/logout, and the served CSP/CORS/
+  Origin headers.
+- Keep iterating until every capability-matrix row passes or has an evidenced rights blocker.

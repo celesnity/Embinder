@@ -115,10 +115,10 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
       model?: string;
     };
 
-    // Defaults come from the server env (MINDER_*). The bubble no longer sends these,
+    // Defaults come from the server env. The bubble no longer sends these,
     // so the model id and endpoint stay out of the browser payload.
-    const baseURL = bodyBaseURL ?? process.env.MINDER_API_BASE_URL;
-    const model = bodyModel ?? process.env.MINDER_MODEL;
+    const baseURL = bodyBaseURL ?? process.env.LLM_BASE_URL ?? process.env.MINDER_API_BASE_URL;
+    const model = bodyModel ?? process.env.LLM_MODEL ?? process.env.MINDER_MODEL;
 
     // Only a browser-supplied baseURL is untrusted (SSRF / key-exfil). An env-configured
     // one is server-owned and bypasses the loopback allowlist.
@@ -126,7 +126,7 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
       return res.status(400).json({ error: 'baseURL not allowed' });
     }
     if (!baseURL) {
-      return res.status(500).json({ error: 'no baseURL configured (set MINDER_API_BASE_URL)' });
+      return res.status(500).json({ error: 'no baseURL configured (set LLM_BASE_URL)' });
     }
     if (!model || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'model and messages required' });

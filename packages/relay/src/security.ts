@@ -17,7 +17,13 @@ export function tokenMatches(a: string | undefined, b: string | undefined): bool
 }
 
 export const ALLOWED_HOSTS = ['127.0.0.1:7331', 'localhost:7331'];
-export const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+export const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  // PocketBase's default standalone origin (embedded Admin UI).
+  'http://localhost:8090',
+  'http://127.0.0.1:8090',
+];
 
 // Host header must be a loopback:port we recognise (blunts DNS-rebinding).
 export function hostAllowed(host: string | undefined): boolean {

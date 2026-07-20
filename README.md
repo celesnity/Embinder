@@ -122,6 +122,7 @@ Everything runs locally on a single port **`127.0.0.1:7331`**. The relay is the 
 | **`@embinder/react`** | App SDK. `useEmbinder` (the pointer), `EmbinderProvider` (ws shim + default-mounted resident bubble), driver.js action **spotlight** (feature-flagged, code-split). |
 | **`@embinder/relay`** | Embedded agent runtime: capability registry with render-scoped membership, `/chat` LLM loop, **policy gate**, approval surface, audit log, rate limit, token/origin hardening. Optional `/mcp` endpoint for external agents. |
 | **`apps/todo`** | Reference app — two pages (Board ⇄ Archive) whose point is watching the agent's context switch when you navigate. |
+| **`apps/pocketbase/ui`** | PocketBase Admin UI integration — native chat bubble plus render-scoped navigation and active-collection record tools. |
 
 > [!NOTE]
 > Package names shown as `@embinder/*` are the published target scope. This is an `npx`-first monorepo — clone it and run the commands; you don't need the packages off npm to try it.

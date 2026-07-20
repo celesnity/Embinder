@@ -81,8 +81,24 @@
       "notes": "Feature-flagged. Headless only (stub LLM) - real-browser bubble click-through is unverified (see F-D8)."
     },
     {
-      "id": "F-D8",
+      "id": "F-PB",
       "priority": 6,
+      "area": "integration",
+      "title": "PocketBase Admin UI resident agent integration",
+      "user_visible_behavior": "The PocketBase Admin UI connects to the Embinder relay, exposes render-scoped navigation and active-collection record tools, provides live screen context, and includes the resident agent chat bubble with destructive record deletion gated out-of-tab.",
+      "status": "passing",
+      "verification": [
+        "npm run typecheck",
+        "npm run e2e",
+        "npm run test --prefix apps/pocketbase/ui",
+        "npm run build --prefix apps/pocketbase/ui"
+      ],
+      "evidence": "2026-07-18 this host: npm run typecheck -> exit 0; npm run e2e -> all assertions PASS and 'E2E + GATE GREEN'; npm run test --prefix apps/pocketbase/ui -> 3/3 PASS, including relay call execution regression coverage; npm run build --prefix apps/pocketbase/ui -> Vite production build exit 0 (204 modules transformed); live browser verification against :8090 -> status Ready, enabled chat input, shared ghost cursor mounted, and no console errors.",
+      "notes": "User-directed feature. PocketBase is a vanilla JS + Shablon + Vite SPA, so it uses the framework-neutral JSON-over-WebSocket bridge while reusing the shared agent cursor visualization from @embinder/react."
+    },
+    {
+      "id": "F-D8",
+      "priority": 7,
       "area": "verification",
       "title": "Live-browser + spotlight + rate-limit behavioral proof",
       "user_visible_behavior": "The same round-trip works through the real @embinder/react provider + DOM at :5173, the driver.js spotlight locks the destructive element, and AC-7 rate limit denies over-limit calls.",
@@ -99,7 +115,7 @@
     },
     {
       "id": "F-D9",
-      "priority": 7,
+      "priority": 8,
       "area": "demo",
       "title": "D8-D9 model bake-off + rehearsal",
       "user_visible_behavior": "A real MCP client/LLM drives the todo app end-to-end following docs/DEMO.md; the rehearsal playbook passes.",
@@ -112,7 +128,7 @@
     },
     {
       "id": "F-D10",
-      "priority": 8,
+      "priority": 9,
       "area": "ship",
       "title": "D10 ship",
       "user_visible_behavior": "Packages build and are ready to publish; README quick-start works from a clean clone.",

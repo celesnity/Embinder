@@ -1,0 +1,303 @@
+.embinder-chat {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1000;
+    font-family: var(--baseFontFamily);
+}
+
+.embinder-chat-toggle {
+    position: relative;
+    float: right;
+    width: 58px;
+    height: 58px;
+    overflow: visible;
+    border: 1px solid rgb(120 190 255 / 45%);
+    border-radius: 50%;
+    color: #fff;
+    background: radial-gradient(circle at 50% 25%, #243c67, #0d1930 72%);
+    box-shadow: 0 10px 30px rgb(15 65 150 / 52%), inset 0 1px 0 rgb(255 255 255 / 12%);
+    font-size: 25px;
+    cursor: pointer;
+    isolation: isolate;
+    transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.embinder-chat-toggle::before {
+    position: absolute;
+    z-index: -1;
+    inset: -6px;
+    border-radius: inherit;
+    background: radial-gradient(circle, rgb(75 211 255 / 45%), transparent 68%);
+    content: "";
+}
+
+.embinder-chat-toggle:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 14px 38px rgb(46 116 238 / 65%), inset 0 1px 0 rgb(255 255 255 / 14%);
+}
+
+.embinder-toggle-mascot,
+.embinder-toggle-close {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transition: opacity 180ms ease, transform 260ms ease;
+}
+
+.embinder-toggle-mascot img {
+    width: 43px;
+    height: 43px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgb(0 0 0 / 40%));
+}
+
+.embinder-toggle-close {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+    font-size: 25px;
+}
+
+.embinder-chat-toggle[data-open="true"] .embinder-toggle-mascot {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.45);
+}
+
+.embinder-chat-toggle[data-open="true"] .embinder-toggle-close {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+}
+
+.embinder-online-dot {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    width: 11px;
+    height: 11px;
+    border: 2px solid #0d1930;
+    border-radius: 50%;
+    background: #52e6ff;
+}
+
+.embinder-chat-panel {
+    width: min(380px, calc(100vw - 32px));
+    height: min(520px, calc(100vh - 110px));
+    margin-bottom: 14px;
+    overflow: hidden;
+    border: 1px solid #304368;
+    border-radius: 16px;
+    color: #eef4ff;
+    background: linear-gradient(180deg, #14213a, #0b1324);
+    box-shadow: 0 22px 60px rgb(0 0 0 / 45%);
+    transform-origin: bottom right;
+}
+
+.embinder-chat-panel > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgb(130 170 240 / 15%);
+}
+
+.embinder-chat-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.embinder-chat-brand img {
+    width: 29px;
+    height: 29px;
+    filter: drop-shadow(0 2px 5px rgb(42 144 255 / 45%));
+}
+
+.embinder-chat-state {
+    max-width: 210px;
+    overflow: hidden;
+    color: #91a8d1;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.embinder-chat-messages {
+    height: calc(100% - 112px);
+    padding: 10px;
+    overflow-y: auto;
+}
+
+.embinder-chat-empty {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 30px;
+    color: #91a8d1;
+    text-align: center;
+}
+
+.embinder-chat-empty > span:last-child {
+    max-width: 230px;
+}
+
+.embinder-empty-mascot {
+    display: grid;
+    width: 76px;
+    height: 76px;
+    margin-bottom: 8px;
+    place-items: center;
+    border: 1px solid rgb(120 190 255 / 30%);
+    border-radius: 24px;
+    background: radial-gradient(circle at 50% 25%, #243c67, #0d1930 72%);
+    box-shadow: 0 12px 30px rgb(29 105 225 / 35%);
+}
+
+.embinder-empty-mascot img {
+    width: 61px;
+    height: 61px;
+    object-fit: contain;
+}
+
+.embinder-message {
+    max-width: 88%;
+    margin: 7px 0;
+    padding: 9px 11px;
+    border: 1px solid rgb(130 170 240 / 14%);
+    border-radius: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.embinder-message.user {
+    margin-left: auto;
+    background: #244c88;
+}
+
+.embinder-message.assistant {
+    background: rgb(255 255 255 / 5%);
+}
+
+.embinder-message.error {
+    border-color: #9f3d50;
+    color: #ffb3c0;
+}
+
+.embinder-chat-form {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-top: 1px solid rgb(130 170 240 / 15%);
+}
+
+.embinder-chat-form input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid #354b72;
+    border-radius: 9px;
+    color: #eef4ff;
+    background: #091224;
+}
+
+.embinder-chat-form button {
+    border: 0;
+    border-radius: 9px;
+    color: #071328;
+    background: #55cfff;
+    font-weight: 700;
+}
+
+.embinder-chat-form button:disabled,
+.embinder-chat-form input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.embinder-action-active {
+    outline: 3px solid #55cfff !important;
+    outline-offset: 3px;
+}
+
+.embinder-action-awaiting {
+    animation: embinder-waiting 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes embinder-waiting {
+    50% {
+        outline-color: #ffb84d;
+        box-shadow: 0 0 0 8px rgb(255 184 77 / 18%);
+    }
+}
+
+@keyframes embinder-mascot-float {
+    0%,
+    100% {
+        transform: translateY(0) rotate(-1deg);
+    }
+
+    50% {
+        transform: translateY(-5px) rotate(2deg);
+    }
+}
+
+@keyframes embinder-halo {
+    0%,
+    100% {
+        opacity: 0.25;
+        transform: scale(0.96);
+    }
+
+    50% {
+        opacity: 0.9;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes embinder-online-pulse {
+    50% {
+        box-shadow: 0 0 0 6px rgb(82 230 255 / 0%);
+        filter: brightness(1.25);
+    }
+}
+
+@keyframes embinder-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.94);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .embinder-chat-toggle::before {
+        animation: embinder-halo 2.6s ease-in-out infinite;
+    }
+
+    .embinder-toggle-mascot img,
+    .embinder-empty-mascot {
+        animation: embinder-mascot-float 3.2s ease-in-out infinite;
+    }
+
+    .embinder-online-dot {
+        animation: embinder-online-pulse 1.8s ease-in-out infinite;
+        box-shadow: 0 0 0 0 rgb(82 230 255 / 55%);
+    }
+
+    .embinder-chat-panel:not([hidden]) {
+        animation: embinder-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .embinder-action-awaiting {
+        animation: none;
+    }
+}

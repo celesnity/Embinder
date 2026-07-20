@@ -17,6 +17,9 @@
 - convenient **Admin dashboard UI**
 - and simple **REST-ish API**
 
+> [!NOTE]
+> This fork integrates the Embinder resident agent into the Admin UI. See [`ui/EMBINDER.md`](ui/EMBINDER.md) for the tool map, policy, setup, and integration boundaries.
+
 **For documentation and examples, please visit https://pocketbase.io/docs.**
 
 > [!WARNING]

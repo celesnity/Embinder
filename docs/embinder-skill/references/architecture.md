@@ -20,20 +20,23 @@ npm workspaces, TypeScript + ESM, Node >= 20. Root `package.json` declares
 |---|---|---|
 | `packages/react` | `@embinder/react` | App-side SDK: `EmbinderProvider`, re-exported `useWebMCP`, `grabAnchor`, spotlight, chat bubble. |
 | `packages/relay` | `@embinder/relay` | Node MCP server + ws app-hub + **server-side policy/approval gate** + audit + chat loop. The core differentiator. |
-| `apps/todo` | `todo` | Reference app: a Vite/React todo board exposing 6 WebMCP tools, wired end-to-end. The only workspace consumer of `@embinder/react`. |
-| `apps/pocketbase` | *(none — Go)* | **Unrelated** vendored upstream PocketBase. Not in the workspace, not imported by any TS package. Ignore for the SDK. |
+| `apps/todo` | `todo` | React reference integration: provider, actions, context, resident chat, spotlight, and ghost cursor. |
+| `apps/pocketbase` | *(Go server + vanilla/Shablon/Vite UI)* | Non-React reference integration. Its Admin UI uses a framework-neutral bridge, authenticated PocketBase SDK actions, live collection/schema context, the shared mascot/cursor, chat, CSP allowances, and embedded production assets. It is not an npm workspace, so run its UI and Go checks explicitly. |
 
 Root scripts: `dev` (`node scripts/dev.mjs`), `relay`, `todo`, `e2e` (`node scripts/e2e.mjs`),
 `build` (`--workspaces --if-present`), `typecheck` (same). Helpers in `scripts/`:
 - `scripts/dev.mjs` — spawns relay + todo together (relay :7331, todo :5173), Windows tree-kill.
 - `scripts/e2e.mjs` — the headless full-pipeline proof and the **authoritative wire-protocol
   spec**: boots the relay, plays a fake browser over ws, a real MCP client over `/mcp`, drives
-  the approval SSE surface, and exercises `/chat` against a stub LLM (17 assertions, AC-1..AC-6).
+  the approval SSE surface, and exercises `/chat` against a stub LLM.
 
 ### The dependency graph (important)
 
 ```
 apps/todo ─▶ @embinder/react ─▶ @mcp-b/react-webmcp, @assistant-ui/*, driver.js, zod  (peer: react)
+
+apps/pocketbase/ui ─▶ framework-neutral ws bridge + authenticated PocketBase browser SDK
+                   └─▶ shared Embinder mascot/ghost-cursor source
 
 @embinder/relay ─(standalone)─ @modelcontextprotocol/sdk, ai, @ai-sdk/openai-compatible, express, ws, zod
 
@@ -71,7 +74,9 @@ surface is `index.ts`, which exports:
   React StrictMode's mount→unmount→mount cannot kill the socket.
 - `ensureShim` does `Object.defineProperty(document, 'modelContext', { value, configurable: true })`.
 - The ws opens lazily; the app token is fetched from `GET /app-token` unless passed as `token`.
-  Registrations **buffer in an outbox** until the socket is open.
+  Registrations **buffer in an outbox** until the socket is open. Do not confuse buffering with
+  reconnect/readiness proof; integrations must test delayed relay start and relay restart in the
+  served browser and improve the provider/adapter if the target requires recovery.
 - `registerTool(descriptor, options)` stores the descriptor locally, sends
   `{ type: 'register', tool: stripDescriptor(descriptor) }` over the ws — `stripDescriptor`
   sends `name/title/description/inputSchema/annotations` but **not the handler** (the handler
@@ -186,7 +191,7 @@ allowlist (default `127.0.0.1,localhost`, override `LLM_BASE_URL_ALLOWLIST`); th
 ### `security.ts` & `audit.ts`
 - `security.ts` — `mintToken` (24 random bytes base64url), `tokenMatches` (constant-time
   `timingSafeEqual`), `hostAllowed` / `originAllowed` + `ALLOWED_HOSTS` / `ALLOWED_ORIGINS`
-  (loopback:7331 hosts, :5173 origins).
+  (loopback:7331 hosts and explicitly supported app origins, including the reference ports).
 - `audit.ts` — `audit(path, entry)` appends one JSON line to `audit.jsonl`:
   `{ ts, session, tool, argsRaw, argsCanonical, decision, approver, latencyMs }`.
 
@@ -248,7 +253,7 @@ message, read the e2e script rather than guessing.
 | Startup harness (install + typecheck + e2e) | `.\init.ps1` |
 | Install | `npm install` |
 | Typecheck (all workspaces) | `npm run typecheck`  (expect exit 0) |
-| Full behavioral proof | `npm run e2e`  (expect 17/17 PASS, "E2E + GATE GREEN") |
+| Full behavioral proof | `npm run e2e`  (expect all assertions and "E2E + GATE GREEN") |
 | Run the app | `npm run dev`  (relay :7331 + todo :5173) |
 | Approvals surface | http://127.0.0.1:7331/approve |
 
