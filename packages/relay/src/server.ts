@@ -43,8 +43,8 @@ try {
 } catch {
   /* no .env — env must come from the shell */
 }
-const POLICY_PATH = resolve(ROOT, 'embinder.policy.json');
-const AUDIT_PATH = resolve(ROOT, 'audit.jsonl');
+const POLICY_PATH = process.env.EMBINDER_POLICY_PATH ?? resolve(ROOT, 'embinder.policy.json');
+const AUDIT_PATH = process.env.EMBINDER_AUDIT_PATH ?? resolve(ROOT, 'audit.jsonl');
 const policy = loadPolicy(POLICY_PATH);
 const ENABLE_MCP = process.env.EMBINDER_ENABLE_MCP !== 'false';
 const ENABLE_CHAT = process.env.EMBINDER_ENABLE_CHAT !== 'false';
