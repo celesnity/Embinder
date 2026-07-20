@@ -34,7 +34,7 @@ process.stdout.on('error', () => {});
 process.stderr.on('error', () => {});
 
 const PORT = 7331;
-const HOST = '127.0.0.1';
+const HOST = process.env.EMBINDER_HOST ?? '127.0.0.1';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 // Load repo-root .env (LLM_BASE_URL / LLM_MODEL / OPENAI_API_KEY|LLM_KEY) if present.
 // Existing process env wins; a missing file is fine.
