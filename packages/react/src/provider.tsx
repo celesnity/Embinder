@@ -19,6 +19,7 @@ import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no 
 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
 const PHASE_TYPES = new Set(['intent', 'gate', 'decided', 'focus']);
+const DIRECT_PHASE_EVENT = 'embinder:direct-ui-phase';
 
 interface Shim {
   modelContext: ModelContextSurface;
@@ -29,6 +30,23 @@ interface Shim {
   unregisterScope(id: string): void;
 }
 let singleton: Shim | undefined;
+
+/** Publish a visualization phase for an action delivered outside the relay, such as a direct host UI bridge. */
+export function emitEmbinderPhase(phase: PhaseMessage): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<PhaseMessage>(DIRECT_PHASE_EVENT, { detail: phase }));
+}
+
+/** Subscribe an Embinder visualizer to direct bridge phases without coupling it to a host transport. */
+export function subscribeEmbinderPhase(listener: (phase: PhaseMessage) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const onPhase = (event: Event) => {
+    const phase = (event as CustomEvent<PhaseMessage>).detail;
+    if (phase && typeof phase.type === 'string') listener(phase);
+  };
+  window.addEventListener(DIRECT_PHASE_EVENT, onPhase);
+  return () => window.removeEventListener(DIRECT_PHASE_EVENT, onPhase);
+}
 
 // Internal: bound-state snapshots from useEmbinder ride the same socket (D-4).
 export function sendEmbinderContext(name: string, state: unknown): void {
@@ -208,8 +226,13 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
         });
       },
     );
+    const unsubscribeDirect = subscribeEmbinderPhase((m) => {
+      sp?.handle(m);
+      ghost?.handle(m);
+    });
     return () => {
       cancelled = true;
+      unsubscribeDirect();
       singleton?.setPhaseListener(undefined);
       sp?.destroy();
       ghost?.destroy();
