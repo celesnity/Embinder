@@ -1,0 +1,43 @@
+export { EmbinderProvider } from './provider.js';
+export type { EmbinderProviderProps } from './provider.js';
+export { useEmbinder } from './use-embinder.js';
+export type { EmbinderDescriptor, EmbinderBind } from './use-embinder.js';
+export { getModelContext } from './model-context.js';
+export type { ToolDescriptor, ModelContextSurface } from './model-context.js';
+export declare function grabAnchor(name: string): {
+    'data-embinder-tool': string;
+};
+/** Anchor a semantic read-only action to its relevant visible UI region. */
+export declare function grabFocusAnchor(...names: string[]): {
+    'data-embinder-focus-for': string;
+};
+export { useScrollTarget } from './actions/useScrollTarget.js';
+export type { ScrollTargetConfig } from './actions/useScrollTarget.js';
+export { useRoute } from './actions/useRoute.js';
+export { useDraggable, EMBINDER_DND_MIME } from './actions/useDraggable.js';
+export type { DraggableConfig } from './actions/useDraggable.js';
+export { useDropZone } from './actions/useDropZone.js';
+export type { DropZoneConfig } from './actions/useDropZone.js';
+export type { ChatBubbleConfig } from './chat/ChatBubble.js';
+export { AgentButton } from './components/AgentButton.js';
+export type { AgentButtonProps } from './components/AgentButton.js';
+export { AgentInput } from './components/AgentInput.js';
+export type { AgentInputProps } from './components/AgentInput.js';
+export { AgentSelect } from './components/AgentSelect.js';
+export type { AgentSelectProps } from './components/AgentSelect.js';
+export { AgentDiv } from './components/AgentDiv.js';
+export type { AgentDivProps } from './components/AgentDiv.js';
+export { AgentCheckbox } from './components/AgentCheckbox.js';
+export type { AgentCheckboxProps } from './components/AgentCheckbox.js';
+export { AgentRadioGroup } from './components/AgentRadioGroup.js';
+export type { AgentRadioGroupProps } from './components/AgentRadioGroup.js';
+export { AgentToggle } from './components/AgentToggle.js';
+export type { AgentToggleProps } from './components/AgentToggle.js';
+export { AgentLink } from './components/AgentLink.js';
+export type { AgentLinkProps } from './components/AgentLink.js';
+export { AgentList } from './components/AgentList.js';
+export type { AgentListProps, AgentAction } from './components/AgentList.js';
+export { AgentForm } from './components/AgentForm.js';
+export type { AgentFormProps } from './components/AgentForm.js';
+export { AgentScope } from './components/AgentScope.js';
+export type { AgentScopeProps } from './components/AgentScope.js';
