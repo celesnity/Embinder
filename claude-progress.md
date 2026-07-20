@@ -22,40 +22,49 @@ The progress log. Every session reads this first and updates it last.
 
 ## Session Record
 
-### 2026-07-20 - Universal AI-native implementation skill
+### 2026-07-20 - Context proofing focus scopes
 
-- **Goal:** Turn the Embinder implementation skill into a clear, reusable process for coding agents integrating the SDK into any browser product.
-- **Completed:**
-  - Replaced wiring-oriented completion language with a mandatory route/page/function capability matrix and measurable coverage denominator.
-  - Added page-by-page action, context, navigation, policy, visualization, persistence, and real-browser verification requirements.
-  - Added an explicit diagnose-patch-retest loop that cannot end while non-blocked capability rows remain unverified.
-  - Added resident-agent sub-system and animation completion gates, including the official mascot, ghost cursor, spotlight, responsive behavior, and reduced motion.
-  - Added a required access-rights table covering CSP/WebSocket, Origin/CORS, auth, roles, API/data rules, iframe/sandboxing, filesystem/network, and server-only boundaries.
-  - Replaced the minimal non-React bridge reference with reconnect/replay, connection state, context, phase listeners, and correct `call` phase execution.
-  - Corrected stale documentation that treated PocketBase as unrelated; Todo and PocketBase are now documented as the React and non-React reference integrations.
-  - Added `agents/openai.yaml` and a reusable bridge validation script.
-  - Added a mandatory pre-edit reading gate to root `AGENTS.md`, `CLAUDE.md`, GitHub Copilot instructions, the skill body, and the skill default prompt. Coding agents must personally read all five Embinder implementation documents through EOF plus the target product's docs, then acknowledge the readings, stack verdict, selected path, and capability matrix before editing.
-- **Verification:** skill validation PASS; bridge validation PASS; `git diff --check` PASS; a bounded independent read-only audit of the Todo app correctly refused false completion, produced capability/sub-system/rights evidence, and returned `Incomplete` where runtime proof was unavailable.
+- **Scope:** added `AgentScope` to `@embinder/react`; declared semantic summaries and scope ancestry reach the relay without DOM scraping. Descendant tools inherit `embinderScope` automatically.
+- **Relay:** added per-session scope tree, virtual `focus_<scope>` tools, one-action reservations, stale/out-of-scope rejection before browser forwarding, parent restoration after settled scoped action, and selected tool filtering for MCP/chat. Chat refreshes active tools/system context through AI SDK `prepareStep`.
+- **Visualization:** focus phases drive the existing driver.js spotlight and ghost cursor to `[data-embinder-scope]`; focus does not lock UI, while destructive action approval stays unchanged.
+- **Verification:** `npm test` -> React 15 files/50 tests PASS; relay 4 files/14 tests PASS. `npm run typecheck` -> exit 0. `npm run e2e` -> SC-focus root hidden child, semantic focus result, normal gate, and parent restore PASS; `E2E + GATE GREEN`.
+- **Review:** user requested review later. No implementation commit yet. Existing unrelated `.gitignore`, `AGENTS.md`, and `skills-lock.json` changes remain untouched.
 
-### 2026-07-18 (c) - PocketBase Admin UI resident agent
+### 2026-07-20 - Fix chat focus visualization
 
-- **Goal:** Integrate the Embinder agent into `apps/pocketbase` after reading the Embinder platform playbook and PocketBase extension documentation.
-- **Completed:**
-  - Mapped the target as a vanilla JavaScript + Shablon + Vite SPA and installed a reconnecting framework-neutral bridge at the Admin UI entry.
-  - Added authenticated, render-scoped PocketBase capabilities: screen context, navigation, refresh, and active-collection list/create/update/delete record actions.
-  - Added a native resident chat bubble that consumes the relay's AI SDK UI stream, reuses the Embinder gear-head mascot, restores its motion system, and displays gate/action phases with DOM anchors.
-  - Mounted the exact shared Todo ghost cursor and fixed the vanilla bridge so `call` phases both animate and execute their registered PocketBase actions.
-  - Added the missing loopback WebSocket source to PocketBase's Admin UI CSP; live browser verification now reaches `Ready` with an enabled chat input and the ghost cursor mounted.
-  - Classified all PocketBase tools in `embinder.policy.json`; record deletion is destructive and pauses at the out-of-tab approval surface.
-  - Allowed PocketBase's default loopback origin (`:8090`) and aligned the chat route with documented `LLM_BASE_URL` / `LLM_MODEL` configuration.
-  - Added `apps/pocketbase/ui/EMBINDER.md`, focused route/context tests, and rebuilt the embedded Admin UI assets.
-  - Restored the required baseline on Windows: direct Node+tsx relay spawn, encoding-stable invisible-Unicode canonicalization, current archive policy entries, and deterministic inline-approval test env.
-- **Verification run:** `npm run typecheck`; `npm run e2e`; `npm run test --prefix apps/pocketbase/ui`; `npm run build --prefix apps/pocketbase/ui`.
-- **Evidence recorded:** typecheck exit 0; E2E all PASS / `E2E + GATE GREEN`; PocketBase tests 3/3 PASS (including call execution regression coverage); Vite production build exit 0 with 204 modules transformed.
-- **Known risks:**
-  - JSON record mutations are supported, but browser `File` values are outside the current tool schema.
-  - `npm install --prefix apps/pocketbase/ui` reports one high-severity advisory in the vendored UI dependency tree; no dependency versions were changed in this feature.
-- **Next best action:** Run the documented live smoke with a PocketBase backend on `:8090`, a configured local model, and the approval page open separately.
+- **Root cause:** MCP focus emitted a relay-to-app `focus` phase, but the resident `/chat` focus executor only changed the relay scope lease. Driver.js and ghost cursor therefore received no focus phase during chat use.
+- **Fix:** `executeFocus` emits `{name, scopeId}` through an injected `onFocus` callback; server relays it to the app. Added regression test.
+- **Verification:** `npm test --workspace @embinder/relay -- src/chat.test.ts` -> 7 tests PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> all assertions PASS, `E2E + GATE GREEN`.
+
+### 2026-07-20 - Reconnect after relay restart
+
+- **Root cause:** provider created one WebSocket and never reconnected after the relay was restarted; chat then saw no app tools and reported an application connection error.
+- **Fix:** reconnect after close and rehydrate scope registrations, scope summaries, tool registrations, and bound context snapshots. Regression test confirms a second socket re-registers mounted tools.
+- **Current verification:** React reconnect test 11/11 PASS; chat focus test 7/7 PASS; typecheck exit 0. Full fixed-port e2e is recorded below.
+
+### 2026-07-20 - Action preflight and focus target proof
+
+- **Fix:** every non-virtual action emits a display-only focus phase before gate processing; exact task-card targets resolve from `args.id`. Read-only collection tools now declare semantic focus anchors, so Driver.js and the ghost cursor do not fall back to a centered empty overlay.
+- **Verification:** `npm test --workspace @embinder/react` -> 15 files/52 tests PASS; `npm test --workspace @embinder/relay` -> 4 files/15 tests PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> all assertions PASS, `E2E + GATE GREEN`.
+
+### 2026-07-19 - AgentForm Task 3 verification and evidence
+
+- **AgentForm scope:** verified the completed `@embinder/react` AgentForm component and its integration without changing implementation.
+- **Verification on this host:** `npm test --workspace @embinder/react` -> Vitest 14 test files passed, 46 tests passed, exit 0; `npm run typecheck` -> `@embinder/react` and `@embinder/relay` `tsc -p tsconfig.json --noEmit`, exit 0; `npm run e2e` -> all SC assertions PASS, `E2E + GATE GREEN`, exit 0.
+- **Feature state:** recorded fresh evidence and marked only `F-AGENTFORM` as `passing` in `feature_list.json`.
+- **Deferred reviewer minor:** direct human-path tests for individual textarea and select controls remain a test-coverage improvement; no implementation change made in this verification task.
+- **Commit:** none (not requested).
+
+**Addendum — final AgentForm fix:** Fresh rerun after final review approval: `npm test --workspace @embinder/react` -> 14 test files and 48 tests passed, exit 0; `npm run typecheck` -> exit 0 across `@embinder/react` and `@embinder/relay`; `npm run e2e` -> all SC assertions PASS, `E2E + GATE GREEN`, exit 0. Final review approved.
+
+### 2026-07-19 - Remove out-of-tab /approve; agent components; ghost-cursor tuning
+
+- **Agent components** shipped in `@embinder/react` (AgentButton/Input/Select/Div/Checkbox/RadioGroup/Toggle/Link + `createAgentElement` factory + dispatch helpers). react suite 33/33, typecheck 0. Wired AgentButton (undo, mark_all_done) + AgentInput (set_search) into apps/todo Toolbar; added `set_search: write` to policy.
+- **e2e baseline greened** on Node 26: SC-6 tamper test repointed to `bulk_delete` (delete_task is policy `write`); `restore_task` declared `write` (was deny-by-default destructive, hung SC-4 re-delivery). e2e 36/36 GREEN, re-runnable.
+- **Ghost cursor:** `resolveEl` now picks the largest visible on-screen element among multiple same-tool anchors (accuracy); `glideTo` duration now distance-proportional (feel). Hotspot HOTX/HOTY left as the manual calibration lever. Visual-only - live look still owed (F-D8).
+- **Removed the out-of-tab /approve page (PRODUCT DECISION, user-confirmed).** Inline on-screen Approve/Deny is now the ONLY path. `/approver-token` always serves the token; `approval-routes.ts` drops `/approve` + `renderPage`; `spotlight.ts createSpotlight(decideBase)` drops the approveUrl fallback link; provider updated. This DROPS anti-self-approve (AC-4) - the agent-driven tab now holds the approver token. The token CHECK on /api/decide remains (wrong token -> 403). See F-SEC notes.
+- **Verification:** `npm run typecheck` exit 0; `npm run e2e` -> 36/36 PASS, 'E2E + GATE GREEN', exit 0 (assertion inverted: `/approver-token serves the token -> 200`).
+- **Uncommitted** on `main`: agent-component todo integration, ghost-cursor tuning, and the /approve removal are all in the working tree (not yet committed).
 
 ### 2026-07-18 (b) - Rename to Embinder + sync with main
 
@@ -73,7 +82,7 @@ The progress log. Every session reads this first and updates it last.
   - Renamed the folder `D:\[Project]_GrabMyCursor` -> `D:\[Project]_Embinder`.
 - **Verification run:** `npm run typecheck` (exit 0); `npm run e2e` (all assertions PASS, GREEN).
 - **Evidence recorded:** e2e adds chat assertions - `/chat streamed ok (200)`, `chat tool call
-  landed via the gate`, `chat destructive paused + ran after approval`, `off-allowlist baseURL 400`,
+landed via the gate`, `chat destructive paused + ran after approval`, `off-allowlist baseURL 400`,
   `/approver-token disabled by default 403`, CORS preflight 204 + echoes app origin.
 - **Commits:** none (not requested). Working-tree changes: `scripts/e2e.mjs`, `scripts/dev.mjs`
   (re-applied Windows fix), `package-lock.json`, plus the untracked harness files.

@@ -149,6 +149,7 @@ try {
     if (m.name === 'add_task') { const t = { id: `t${nextId++}`, text: m.args.text }; board.push(t); result = { ok: true, added: t }; }
     else if (m.name === 'delete_all_tasks') { const n = board.length; board.length = 0; result = { ok: true, cleared: n }; }
     else if (m.name === 'delete_task') { const i = board.findIndex((t) => t.id === m.args.id); if (i >= 0) board.splice(i, 1); result = { ok: true }; }
+    else if (m.name === 'bulk_delete') { const before = board.length; for (let i = board.length - 1; i >= 0; i--) if (board[i].id === m.args.id) board.splice(i, 1); result = { ok: true, deleted: before - board.length }; }
     else if (m.name === 'restore_task') { if (muteRestore) return; result = { ok: true, restored: m.args.id }; }
     else if (m.name === 'purge_archive') result = { ok: true, purged: 0 };
     else result = { ok: false };
@@ -161,8 +162,10 @@ try {
   const unreg = (name) => send({ type: 'unregister', name });
 
   // Board page (like BoardPage mounting): context-only pointer + callable capabilities.
-  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks', 'bulk_delete'];
+  const BOARD_TOOLS = ['add_task', 'toggle_task', 'edit_task', 'delete_task', 'delete_all_tasks', 'bulk_delete', 'bulk_delete'];
   function mountBoard() {
+    send({ type: 'scope-register', scope: { id: 'card_t1', name: 'card_t1' } });
+    send({ type: 'scope-context', id: 'card_t1', state: { id: 't1', text: 'milk' } });
     reg('task_board', { type: 'object', properties: {} }, { embinderContextOnly: true });
     reg('add_task', { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, {});
     reg('toggle_task', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, {});
@@ -170,6 +173,10 @@ try {
     reg('delete_task', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
     reg('delete_all_tasks', { type: 'object', properties: {} }, { destructiveHint: true });
     reg('bulk_delete', { type: 'object', properties: { ids: { type: 'array' } }, required: ['ids'] }, { destructiveHint: true });
+    // bulk_delete is 'destructive' in embinder.policy.json AND takes a string arg — used to
+    // exercise the tampered-args/canonical fidelity path (single delete_task is 'write' in policy).
+    reg('bulk_delete', { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, { destructiveHint: true });
+    reg('card_action', { type: 'object', properties: {} }, { embinderScope: 'card_t1' });
     pushBoardContext();
   }
   const ARCHIVE_TOOLS = ['restore_task', 'purge_archive'];
@@ -179,7 +186,7 @@ try {
     reg('purge_archive', { type: 'object', properties: {} }, { destructiveHint: true });
     send({ type: 'context', name: 'archive_list', state: { doneTasks: [{ id: 'a1', text: 'archived thing' }] } });
   }
-  const unmountBoard = () => { unreg('task_board'); for (const t of BOARD_TOOLS) unreg(t); };
+  const unmountBoard = () => { send({ type: 'scope-unregister', id: 'card_t1' }); unreg('card_action'); unreg('task_board'); for (const t of BOARD_TOOLS) unreg(t); };
   const unmountArchive = () => { unreg('archive_list'); for (const t of ARCHIVE_TOOLS) unreg(t); };
 
   mountBoard();
@@ -231,7 +238,7 @@ try {
   await badP.catch(() => {});
 
   // --- fidelity: hidden unicode flagged, canonical executes (AC-5) ---------
-  const tamperP = client.callTool({ name: 'bulk_delete', arguments: { ids: ['t1​​'] } });
+  const tamperP = client.callTool({ name: 'delete_task', arguments: { id: 't1​​' } });
   const pend4 = await firstPending();
   assert(pend4 && pend4.tampered === true, 'SC-6 tampered args flagged (raw ≠ canonical)');
   assert(pend4.canonical.ids[0] === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
@@ -282,6 +289,19 @@ try {
   stub2.server.close();
 
   // --- SC-2: NAVIGATION — Board unmounts, Archive mounts; context switches ---
+  tools = (await client.listTools()).tools.map((t) => t.name);
+  assert(tools.includes('focus_card_t1') && !tools.includes('card_action'), 'SC-focus root exposes focus, hides child action');
+  const focused = JSON.parse((await client.callTool({ name: 'focus_card_t1', arguments: {} })).content[0].text);
+  assert(focused.id === 't1', 'SC-focus returns declared semantic scope context');
+  tools = (await client.listTools()).tools.map((t) => t.name);
+  assert(tools.includes('card_action') && !tools.includes('add_task'), 'SC-focus reveals only child layer');
+  const scopedCall = client.callTool({ name: 'card_action', arguments: {} });
+  const scopedPending = await firstPending();
+  assert(scopedPending?.tool === 'card_action', 'SC-focus scoped action enters normal approval gate');
+  await decide(scopedPending.id, true);
+  await scopedCall;
+  tools = (await client.listTools()).tools.map((t) => t.name);
+  assert(tools.includes('add_task') && !tools.includes('card_action'), 'SC-focus settled action restores parent layer');
   unmountBoard();
   mountArchive();
   await sleep(GRACE_MS + 500); // grace window must expire before the Board set is really gone
@@ -338,9 +358,11 @@ try {
   assert(chatCfg.baseURL === 'http://127.0.0.1:4242/v1' && chatCfg.model === 'demo-model',
     `D-9 /chat-config serves relay env LLM config (got: ${JSON.stringify(chatCfg)})`);
 
-  // --- /approver-token is off unless explicitly enabled ----------------------
-  const tokOff = await fetch(`${BASE}/approver-token`);
-  assert(tokOff.status === 403, `/approver-token disabled by default -> 403 (got ${tokOff.status})`);
+  // --- /approver-token serves the token so the app tab can approve on screen -------------
+  const tokRes = await fetch(`${BASE}/approver-token`);
+  const tokBody = await tokRes.json().catch(() => ({}));
+  assert(tokRes.status === 200 && typeof tokBody.token === 'string' && tokBody.token.length > 0,
+    `/approver-token serves the token for on-screen approval (got ${tokRes.status})`);
 
   // --- CORS preflight for the browser bubble ---------------------------------
   const pre = await fetch(`${BASE}/chat`, {

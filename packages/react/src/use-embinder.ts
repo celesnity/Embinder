@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import type { ZodTypeAny } from 'zod';
 import { getModelContext } from './model-context.js';
 import { sendEmbinderContext } from './provider.js';
+import { useAgentScopeId } from './scope-context.js';
 
 const CONTEXT_DEBOUNCE_MS = 150;
 const CONTEXT_MAX_BYTES = 16 * 1024;
@@ -56,6 +57,7 @@ function zodToJsonSchema(shape: Record<string, ZodTypeAny>): Record<string, unkn
 
 export function useEmbinder(descriptor: EmbinderDescriptor): EmbinderBind {
   const { name } = descriptor;
+  const scopeId = useAgentScopeId();
 
   // The registration effect runs once per name, but handlers often close over component
   // state — always execute the LATEST render's handler, never the mount-time closure.
@@ -83,6 +85,7 @@ export function useEmbinder(descriptor: EmbinderDescriptor): EmbinderBind {
         annotations: {
           ...(descriptor.title ? { title: descriptor.title } : {}),
           ...(descriptor.destructive ? { destructiveHint: true } : {}),
+          ...(scopeId ? { embinderScope: scopeId } : {}),
           // No handler => context-only pointer: contributes state, never a callable tool (D-5).
           ...(descriptor.handler ? {} : { embinderContextOnly: true }),
         },

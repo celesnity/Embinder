@@ -3,7 +3,7 @@
 > **This is the React path.** For any other stack — Vue, Svelte, Angular, Solid, vanilla, SSR —
 > and for the "land on an arbitrary app: detect → map → adapt → report" workflow, see
 > **`platform-playbook.md`** (which uses `embinder-bridge.js`). The concepts below still apply;
-> only the *declare* and *wrap* steps change.
+> only the _declare_ and _wrap_ steps change.
 
 This is the recipe for making a website's actions agent-callable, and gated. Every snippet is
 copied from the live reference app (`apps/todo`) so it matches the source. Do the same in your
@@ -18,12 +18,12 @@ The whole loop is: **wrap → declare → anchor → policy → point the agent 
 Wrap your React tree once, at the root. From `apps/todo/src/main.tsx`:
 
 ```tsx
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { EmbinderProvider } from '@embinder/react';
-import App from './App.tsx';
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { EmbinderProvider } from "@embinder/react";
+import App from "./App.tsx";
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <EmbinderProvider url="ws://127.0.0.1:7331/app" viz chat={{}}>
       <App />
@@ -36,6 +36,7 @@ Configure `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_KEY` beside the relay. Keep mode
 keys out of product code unless the deployment explicitly requires an override.
 
 `EmbinderProviderProps`:
+
 - `url?` — relay ws endpoint (default `ws://127.0.0.1:7331/app`).
 - `token?` — explicit app token; otherwise fetched from the relay's `GET /app-token`.
 - `viz?` — enable the driver.js action spotlight (default `false`; code-split, zero cost off).
@@ -53,38 +54,39 @@ One `useWebMCP({...})` call per agent-callable action. The `inputSchema` is a **
 `apps/todo/src/App.tsx`:
 
 ```tsx
-import { z } from 'zod';
-import { useWebMCP, grabAnchor } from '@embinder/react';
+import { z } from "zod";
+import { useWebMCP, grabAnchor } from "@embinder/react";
 
 useWebMCP({
-  name: 'add_task',
-  description: 'Add a new task to the board',
-  inputSchema: { text: z.string().describe('Task text') },
-  annotations: { title: 'Add task' },
+  name: "add_task",
+  description: "Add a new task to the board",
+  inputSchema: { text: z.string().describe("Task text") },
+  annotations: { title: "Add task" },
   handler: async ({ text }: { text: string }) => {
-    dispatch({ type: 'ADD', text });
+    dispatch({ type: "ADD", text });
     return { ok: true, added: text };
   },
 });
 
 useWebMCP({
-  name: 'delete_task',
-  description: 'Delete a single task by id',
+  name: "delete_task",
+  description: "Delete a single task by id",
   inputSchema: { id: z.string() },
-  annotations: { title: 'Delete task', destructiveHint: true },
+  annotations: { title: "Delete task", destructiveHint: true },
   handler: async ({ id }: { id: string }) => {
-    dispatch({ type: 'DELETE', id });
+    dispatch({ type: "DELETE", id });
     return { ok: true, id };
   },
 });
 ```
 
 Tool-definition fields:
+
 - `name` — unique tool id; **must match the name in `embinder.policy.json`**.
 - `description` — the natural-language description the agent reads.
 - `inputSchema` — Zod raw shape.
 - `annotations` — `{ title, readOnlyHint?, destructiveHint? }`. `destructiveHint: true` is only a
-  *default* risk hint; the server policy overrides it.
+  _default_ risk hint; the server policy overrides it.
 - `handler` — the async function that performs the real UI action (here, dispatch to the app's
   reducer). Its return value becomes the tool result the agent sees. **The handler runs in the
   browser and never leaves it.**
@@ -163,6 +165,7 @@ session gets its own `McpServer`, so multiple clients can connect at once.
 Pass `chat` to the provider (step 1). The bubble talks to the relay's `/chat` route, which runs
 the LLM loop server-side and routes every tool call through **the same gate** as external agents.
 Relay-side env:
+
 - `LLM_KEY` — API key, kept server-side (never sent to the browser).
 - `LLM_BASE_URL_ALLOWLIST` — hosts the browser-supplied `baseURL` may point at (default
   `127.0.0.1,localhost`) — an SSRF / key-exfil guard.
@@ -170,21 +173,19 @@ Relay-side env:
 ## 7. See it, and gate it
 
 - **Spotlight (in-tab):** with `viz`, the driven element highlights on `intent`, **locks** while
-  awaiting approval, and shows approved/denied/running/done. Display-only.
-- **Approve (out-of-tab):** open `http://127.0.0.1:7331/approve` in a *separate* surface (not the
-  agent-driven tab). It streams pending destructive calls over SSE and shows canonical vs raw
-  bytes with tampering flagged. Approve/deny there. The agent's tab can't reach this — that's the
-  point.
-- **Inline approval (opt-in):** set `GMC_INLINE_APPROVAL=1` on the relay to expose approve/deny
-  buttons inside the app tab (exposes `/approver-token`). Off by default.
+  awaiting approval, and shows inline **Approve/Deny buttons** in a popover. Display-only highlight.
+- **Inline approval (on screen):** destructive calls pause and show inline Approve/Deny buttons in
+  the app tab. The approver sees the exact canonical bytes (hidden / zero-width Unicode stripped).
+  This is the default and only path — the agent cannot reach the approver token.
 - **Audit:** every call lands in `audit.jsonl` (`ts, session, tool, argsRaw, argsCanonical,
-  decision, approver, latencyMs`).
+decision, approver, latencyMs`).
 
 ---
 
 ## Adapting to another app or another framework
 
 The general pattern (any app):
+
 1. **One tool per meaningful action.** Verb-named (`add_task`, `delete_task`), matching the
    policy exactly.
 2. **Handler does the real thing** — call your existing state update / API / mutation. Return a

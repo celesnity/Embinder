@@ -95,17 +95,16 @@ surface is `index.ts`, which exports:
 into this `execute`.
 
 ### `spotlight.ts` — display-only visualization (driver.js)
-`createSpotlight(approveUrl, decideBase?)` → `Spotlight { handle(PhaseMessage), destroy() }`.
+`createSpotlight(decideBase?)` → `Spotlight { handle(PhaseMessage), destroy() }`.
 `resolveEl(name)` does `document.querySelector('[data-embinder-tool="…"]')` — i.e. it finds the
 element `grabAnchor` stamped. It moves the highlight through the phases:
 - `intent` → highlight the owning element, popover of the canonical args.
 - `gate` (awaiting) → **lock the element** (so a human can't click it either) with a pulsing
-  "Waiting for owner approval" popover linking to `/approve`.
+  popover showing inline **Approve/Deny buttons**.
 - `decided` → approved/denied styling. `call`/`done` → running/done.
 
-Injects `gmc-*` CSS, mirrors phases to an ARIA live region, respects reduced-motion. It never
-renders approve/deny buttons in the app tab **unless** `GMC_INLINE_APPROVAL=1` is set on the
-relay (which exposes `/approver-token`, consumed via `postDecide` → `POST /api/decide`).
+Injects `gmc-*` CSS, mirrors phases to an ARIA live region, respects reduced-motion. It always
+renders approve/deny buttons in the app tab (via `postDecide` → `POST /api/decide` with approver-token).
 
 ### `chat/ChatBubble.tsx` — optional in-app agent
 `ChatBubble(cfg: ChatBubbleConfig)` where `ChatBubbleConfig` is `{ api?, baseURL?, model? }`
@@ -141,7 +140,7 @@ produced by `npm run build`). Constants `PORT = 7331`, `HOST = 127.0.0.1`.
 - `toZodShape` — minimal JSON-Schema → Zod raw shape (converts the `inputSchema` that arrived
   over the wire back into validators).
 - Express (v5) middleware: Host/Origin allowlist + CORS (DNS-rebinding defense). Routes:
-  `GET /app-token`, `GET /approver-token` (403 unless `GMC_INLINE_APPROVAL=1`),
+  `GET /app-token`, `GET /approver-token` (always serves the token),
   `POST/GET/DELETE /mcp` (StreamableHTTP transport), plus the mounted approval + chat routes.
   A `WebSocketServer` on `/app` (token + origin gated) handles `register`/`unregister`/`result`
   from the browser. Optional `--stdio` transport.
@@ -170,14 +169,11 @@ wins** → else the app's `destructiveHint` → else `unknownTool` (deny-by-defa
   `listPending`, `subscribe`, `enableCliApprovals` (TTY `[a]/[d]`).
 - Types `PendingApproval`, `PublicPending`, `ApprovalRequest`.
 
-### `approval-routes.ts` — the out-of-tab surface
+### `approval-routes.ts` — approval handling
 `mountApprovalRoutes(app, approverToken)`:
-- `GET /approve` — a self-contained HTML page with the approver token embedded; shows canonical
-  vs raw bytes + a tamper warning.
 - `GET /api/pending` — SSE stream of the queue.
-- `POST /api/decide` — **token-gated by `x-approver-token`**. This is the anti-self-approve
-  control: the agent-driven tab (:5173) never loads `/approve`, so it never holds the token; a
-  decide attempt from its DevTools returns 403.
+- `POST /api/decide` — **token-gated by `x-approver-token`**. Receives approval decisions from
+  the app tab (sent when user clicks inline Approve/Deny buttons in the spotlight).
 
 ### `chat.ts` — relay-hosted LLM loop ("Arch A")
 `mountChatRoute(app, { toolRegistry, runGatedCall })` → `POST /chat`. AI SDK `streamText` +
@@ -224,8 +220,9 @@ message, read the e2e script rather than guessing.
 3. `gate` rate-limits, canonicalizes/flags tampering. `read`/`write` → audit `allow`, return.
    `destructive` → audit `pending`, start the 15s keep-alive, `await requestApproval(...)`
    (blocks).
-4. A human decides **out-of-tab** at `GET /approve`; `POST /api/decide` (token-gated) →
-   `decide(id, approve, approver)` resolves/rejects the pending promise.
+4. The browser spotlight shows inline Approve/Deny buttons; a human decides **on screen** and
+   clicks one; `POST /api/decide` (token-gated) → `decide(id, approve, approver)` resolves/rejects
+   the pending promise.
 5. Back in `runGatedCall`: on approve → emit `decided: approved`, `forwardToBrowser(...)`; on
    deny → emit `decided: denied` and rethrow (agent gets an MCP error, app never changed).
 6. `forwardToBrowser` sends `{ type: 'call', ... }` over the ws; the browser shim runs the local
@@ -241,7 +238,7 @@ message, read the e2e script rather than guessing.
 - TypeScript, ESM, **Zod raw-shape** input schemas (`{ id: z.string() }`, not a wrapped object).
 - **Per-session `McpServer`** — one server per MCP session so concurrent clients coexist.
 - The **handler stays in the browser**; only the descriptor crosses the wire.
-- Approval is **out-of-tab** — the agent's tab cannot approve.
+- Approval is **on-screen** via inline Approve/Deny buttons in the app tab.
 - **One gate** — the chat bubble and external MCP agents both go through `runGatedCall`.
 
 ---
@@ -255,6 +252,6 @@ message, read the e2e script rather than guessing.
 | Typecheck (all workspaces) | `npm run typecheck`  (expect exit 0) |
 | Full behavioral proof | `npm run e2e`  (expect all assertions and "E2E + GATE GREEN") |
 | Run the app | `npm run dev`  (relay :7331 + todo :5173) |
-| Approvals surface | http://127.0.0.1:7331/approve |
+| Approvals | inline Approve/Deny buttons in the app tab |
 
 Runtime output (`audit.jsonl`, `.embinder/`, legacy `.grabmycursor/`) is gitignored.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarClock, X } from 'lucide-react';
-import { grabAnchor, useDraggable } from '@embinder/react';
+import { AgentScope, grabAnchor, useDraggable } from '@embinder/react';
 import { type Action, type Task, type Priority } from '../store';
 
 const PRIORITY_LABEL: Record<Priority, string> = {
@@ -34,6 +34,18 @@ export function TaskCard({
   const drag = useDraggable('card', { id: task.id, label: task.text });
 
   return (
+    <AgentScope
+      name={`task_${task.id.replace(/[^A-Za-z0-9_]/g, '_')}`}
+      summary={() => ({
+        id: task.id,
+        text: task.text,
+        done: task.done,
+        priority: task.priority,
+        due: task.due ?? null,
+        tags: task.tags,
+        assignee: task.assignee ?? null,
+      })}
+    >
     <article
       ref={drag.ref}
       className={`card${task.done ? ' done' : ''}`}
@@ -43,6 +55,7 @@ export function TaskCard({
         e.dataTransfer.effectAllowed = 'move';
       }}
       data-priority={task.priority}
+      data-embinder-item={task.id}
     >
       <span className={`prio prio-${task.priority}`} title={PRIORITY_LABEL[task.priority]} />
 
@@ -110,5 +123,6 @@ export function TaskCard({
         <X size={14} strokeWidth={2.2} aria-hidden />
       </button>
     </article>
+    </AgentScope>
   );
 }

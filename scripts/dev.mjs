@@ -39,4 +39,4 @@ const killChild = (c) => {
 const shutdown = () => { for (const c of children) killChild(c); process.exit(0); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-console.log('\x1b[32m[embinder]\x1b[0m relay → http://127.0.0.1:7331  ·  todo → http://localhost:5173  ·  approvals → http://127.0.0.1:7331/approve');
+console.log('\x1b[32m[embinder]\x1b[0m relay → http://127.0.0.1:7331  ·  todo → http://localhost:5173  ·  approvals → on screen in the app tab');

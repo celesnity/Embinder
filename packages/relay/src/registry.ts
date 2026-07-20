@@ -4,6 +4,7 @@
 // with a defined error instead of letting the 30 s call timeout fire.
 
 import type { ZodRawShape } from 'zod';
+import { ScopeTree, type ScopeResult } from './scope-tree.js';
 
 export interface CapabilityDef {
   config: { description?: string; inputSchema?: ZodRawShape; annotations?: Record<string, unknown> };
@@ -11,6 +12,7 @@ export interface CapabilityDef {
   /** Latest bound-state snapshot from the app (D-4). */
   contextState?: unknown;
   contextTs?: number;
+  scopeId?: string;
 }
 
 export interface RegistryHooks {
@@ -42,6 +44,7 @@ export class CapabilityRegistry {
   private graceMs: number;
   private callTimeoutMs: number;
   private hooks: RegistryHooks;
+  private scopes = new ScopeTree();
 
   constructor(hooks: RegistryHooks = {}) {
     this.hooks = hooks;
@@ -103,6 +106,35 @@ export class CapabilityRegistry {
   entries(): IterableIterator<[string, CapabilityDef]> {
     return this.defs.entries();
   }
+
+  registerScope(scope: { id: string; parentId?: string; name: string }): void { this.scopes.register(scope); }
+  setScopeContext(id: string, state: unknown): void { this.scopes.setContext(id, state); }
+  unregisterScope(id: string): void { this.scopes.unregister(id); }
+  selectedEntries(session: string): Array<[string, CapabilityDef]> {
+    const visible = this.scopes.visible(this.entries(), session);
+    const focus = this.scopes.focusable(session).map((scope) => [
+      `focus_${scope.id.replaceAll('/', '__')}`,
+      { config: { description: `Focus ${scope.name}`, inputSchema: {} }, destructive: false } as CapabilityDef,
+    ] as [string, CapabilityDef]);
+    return [...visible, ...focus];
+  }
+  allEntries(): Array<[string, CapabilityDef]> {
+    return [...this.defs, ...this.scopes.allFocusable().map((scope) => [
+      `focus_${scope.id.replaceAll('/', '__')}`,
+      { config: { description: `Focus ${scope.name}`, inputSchema: {} }, destructive: false } as CapabilityDef,
+    ] as [string, CapabilityDef])];
+  }
+  focus(session: string, name: string): ScopeResult {
+    const id = name.startsWith('focus_') ? name.slice(6).replaceAll('__', '/') : '';
+    return this.scopes.focus(session, id);
+  }
+  reserveScopedAction(session: string, name: string): { scoped: boolean; ok: boolean; error?: string } {
+    const def = this.defs.get(name);
+    if (!def?.scopeId) return { scoped: false, ok: true };
+    const result = this.scopes.reserve(session, def.scopeId);
+    return result.ok ? { scoped: true, ok: true } : { scoped: true, ok: false, error: result.error };
+  }
+  settleScopedAction(session: string): void { this.scopes.settle(session); }
 
   trackCall(call: Omit<PendingCall, 'timer'>): void {
     const pending: PendingCall = { ...call };

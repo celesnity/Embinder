@@ -8,7 +8,7 @@ This playbook is the human-run part: model bake-off, acceptance walk-through, an
 ```bash
 npm install
 npm run dev        # relay :7331 + todo :5173 together
-# approvals page:  http://127.0.0.1:7331/approve   (keep this on a SECOND screen/window)
+# approvals: on-screen in the app tab (Approve/Deny inline buttons)
 ```
 
 Headless proof any time: `npm run e2e` → `✅ E2E + GATE GREEN`.
@@ -35,11 +35,10 @@ Feature-flagged; off by default. Enable via `<EmbinderProvider chat={{ baseURL, 
 Relay env:
 - `LLM_KEY` — API key for the OpenAI-compatible endpoint (stays server-side; never sent to the browser).
 - `LLM_BASE_URL_ALLOWLIST` — comma-separated allowed hostnames for the browser-supplied baseURL (default `127.0.0.1,localhost`).
-- `GMC_INLINE_APPROVAL=1` — enable the driver.js Approve/Deny buttons in the app tab (needs `viz`). Off → decisions happen only on `/approve`.
 
 Run (LM Studio preset):
 ```bash
-GMC_INLINE_APPROVAL=1 npm run relay
+npm run relay
 npm run todo
 # LM Studio (or any OpenAI-compatible server) on 127.0.0.1:1234, a model loaded
 ```
@@ -62,12 +61,12 @@ Turn OFF LM Studio's own tool-confirm (auto-approve) so the **relay gate** is th
 
 1. "What tasks are on the board?" → agent calls `list_tasks` (read, passes gate). Board shown.
 2. "Add buy milk, eggs, and bread." → 3× `add_task` (write, passes gate). Tasks appear live at :5173.
-3. "Delete the eggs task." → `delete_task` (destructive) **pauses**. Switch to `/approve` window →
-   **Approve** → task disappears. (Point out: approval is on a separate surface, not the app tab.)
+3. "Delete the eggs task." → `delete_task` (destructive) **pauses**. The app tab shows inline Approve/Deny buttons →
+   **Approve** → task disappears. (Point out: approval happens in the app tab via inline buttons.)
 4. "Clear the whole board." → `delete_all_tasks` **pauses** → this time **Deny** → nothing happens,
    agent reports it was denied by the policy gate.
 5. Fidelity beat: from Inspector, call `delete_task` with an id containing a hidden Tag/zero-width
-   char → `/approve` shows **raw ≠ canonical** with a red warning; the clean bytes are what execute.
+   char → approval surface shows **raw ≠ canonical** with a red warning; the clean bytes are what execute.
 6. Show `audit.jsonl` — every intent and outcome, with approver + latency.
 
 Record a backup video of this exact run.

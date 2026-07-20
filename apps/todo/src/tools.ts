@@ -284,17 +284,8 @@ export function useBoardTools(ref: Ref, dispatch: Dispatch) {
     },
   });
 
-  useEmbinder({
-    name: 'mark_all_done',
-    description: 'Mark every task done, optionally scoped to one column',
-    title: 'Mark all done',
-    input: { column: z.string().optional() },
-    handler: async ({ column }: { column?: string }) => {
-      const before = visibleTasks(ref.current).filter((t) => !t.done).length;
-      dispatch({ type: 'MARK_ALL_DONE', columnId: column });
-      return { ok: true, completed: before };
-    },
-  });
+  // mark_all_done is now the <AgentButton name="mark_all_done"> in the Toolbar — the button
+  // itself declares + drives the tool (agent clicks it), so no separate useEmbinder here.
 
   useEmbinder({
     name: 'add_column',
@@ -333,8 +324,9 @@ export function useBoardTools(ref: Ref, dispatch: Dispatch) {
     name: 'set_filter',
     description: 'Filter the board by search text, tag, priority, assignee, and/or status',
     title: 'Set filter',
+    // `search` is owned by the <AgentInput name="set_search"> box in the Toolbar; this tool
+    // covers the structured facets (tag / priority / assignee / status).
     input: {
-      search: z.string().optional(),
       tag: z.string().nullable().optional(),
       priority: priorityEnum.nullable().optional(),
       assignee: z.string().nullable().optional(),
@@ -383,16 +375,8 @@ export function useBoardTools(ref: Ref, dispatch: Dispatch) {
     },
   });
 
-  useEmbinder({
-    name: 'undo',
-    description: 'Undo the last board mutation (add/edit/move/delete)',
-    title: 'Undo',
-    handler: async () => {
-      const depth = ref.current.past.length;
-      dispatch({ type: 'UNDO' });
-      return { ok: depth > 0, remaining: Math.max(0, depth - 1) };
-    },
-  });
+  // undo is now the <AgentButton name="undo"> in the Toolbar — the button declares + drives
+  // the tool and reports its own disabled state (nothing to undo) as live context.
 
   // ---- DESTRUCTIVE (routed through the human gate) --------------------------
   useEmbinder({
@@ -431,17 +415,8 @@ export function useBoardTools(ref: Ref, dispatch: Dispatch) {
     },
   });
 
-  useEmbinder({
-    name: 'archive_done',
-    description: 'Archive all completed tasks (hides them; reversible via undo)',
-    title: 'Archive done',
-    destructive: true,
-    handler: async () => {
-      const archived = ref.current.tasks.filter((t) => t.done && !t.archived).length;
-      dispatch({ type: 'ARCHIVE_DONE' });
-      return { ok: true, archived };
-    },
-  });
+  // archive_done is now the <AgentButton name="archive_done"> in the Settings danger zone —
+  // it's a Settings-only singleton, so the button declares + drives the tool itself.
 
   useEmbinder({
     name: 'delete_column',

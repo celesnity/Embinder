@@ -9,6 +9,21 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('CapabilityRegistry', () => {
+  it('shows scoped actions only after focus and rejects stale calls', () => {
+    const reg = new CapabilityRegistry();
+    reg.registerScope({ id: 'inbox', name: 'inbox' });
+    reg.setScopeContext('inbox', { count: 2 });
+    reg.register('add_task', def());
+    reg.register('archive_task', { ...def(), scopeId: 'inbox' });
+    expect(reg.selectedEntries('s1').map(([name]) => name)).toEqual(['add_task', 'focus_inbox']);
+    expect(reg.reserveScopedAction('s1', 'archive_task')).toMatchObject({ ok: false, scoped: true });
+    expect(reg.focus('s1', 'focus_inbox')).toEqual({ ok: true, state: { count: 2 } });
+    expect(reg.selectedEntries('s1').map(([name]) => name)).toEqual(['archive_task']);
+    expect(reg.reserveScopedAction('s1', 'archive_task')).toEqual({ scoped: true, ok: true });
+    reg.settleScopedAction('s1');
+    expect(reg.selectedEntries('s1').map(([name]) => name)).toEqual(['add_task', 'focus_inbox']);
+  });
+
   it('stores context snapshots on registered capabilities', () => {
     const reg = new CapabilityRegistry();
     reg.register('task_board', def());

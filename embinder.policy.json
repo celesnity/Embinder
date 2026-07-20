@@ -34,6 +34,7 @@
     "rename_column": "write",
     "set_view": "write",
     "set_filter": "write",
+    "set_search": "write",
     "clear_filter": "write",
     "go_to_page": "write",
     "scroll_to": "write",
@@ -45,6 +46,7 @@
     "delete_task": "write",
     "clear_completed": "write",
     "archive_done": "write",
+    "restore_task": "write",
     "delete_column": "write",
 
     "delete_all_tasks": "destructive",

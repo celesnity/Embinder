@@ -1,8 +1,8 @@
 // "On-screen now" system block (D-5): capabilities + data-delimited bound state,
 // zero synthetic tools. The block is what makes the agent's context render-scoped.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import { buildOnScreenBlock, callableTools } from './chat.js';
+import { buildOnScreenBlock, callableTools, executeFocus } from './chat.js';
 import type { CapabilityDef } from './registry.js';
 
 const entries = (): Array<[string, CapabilityDef]> => [
@@ -46,6 +46,20 @@ describe('callableTools', () => {
   it('excludes context-only pointers from the tool set', () => {
     const names = callableTools(entries()).map(([name]) => name);
     expect(names).toEqual(['add_task']);
+  });
+});
+
+describe('executeFocus', () => {
+  it('emits a UI focus phase after chat activates a scope', () => {
+    const onFocus = vi.fn();
+    const result = executeFocus(
+      { entries: () => [], focus: () => ({ ok: true, state: { id: 't1' } }) },
+      'chat:1',
+      'focus_task_t1',
+      onFocus,
+    );
+    expect(result).toEqual({ id: 't1' });
+    expect(onFocus).toHaveBeenCalledWith({ name: 'focus_task_t1', scopeId: 'task_t1' });
   });
 });
 

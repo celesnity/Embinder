@@ -53,7 +53,7 @@ npm install
 # tell the embedded runtime which model to use (key stays server-side too)
 LLM_BASE_URL=http://127.0.0.1:1234/v1 LLM_MODEL=qwen2.5-7b-instruct npm run dev
 #   app + resident agent bubble:  http://localhost:5173
-#   approvals:                    http://127.0.0.1:7331/approve   ← keep on a second window
+#   approvals:                    on-screen in the app tab (Approve/Deny inline buttons)
 ```
 
 Open the app, click the ✦ bubble, and ask for something on the screen. Switch to the Archive page and watch the agent's world change with yours.
@@ -103,13 +103,11 @@ flowchart LR
     user["👤 User + resident agent<br/>✦ chat bubble in the app"]
     app["🫧 Your app<br/>@embinder/react · useEmbinder"]
     relay["⚙️ Embedded agent runtime<br/>LLM loop · policy gate · audit"]
-    approve["✋ /approve<br/>out-of-band, off the app tab"]
     mcp["🤖 External MCP agents<br/>(optional path)"]
 
     user -->|"asks"| relay
     app <-->|"ws /app · register / context / call"| relay
-    relay -->|"🔦 spotlight + lock"| app
-    relay -.->|"destructive → pause"| approve
+    relay -->|"🔦 spotlight + lock + inline Approve/Deny"| app
     mcp -.->|"http /mcp"| relay
 ```
 
@@ -149,18 +147,19 @@ The bubble's model config lives in the relay's environment, next to the key: `LL
 
 ## 🚦 The gate, seen
 
-A resident agent operating real handlers makes governance *more* necessary, not less. When any agent — bubble or external — calls a destructive capability, the owning element is **spotlit and locked**, a popover shows the canonical args, and the call **hangs** until a human decides on `/approve` — a page the agent's tab can't reach.
+A resident agent operating real handlers makes governance *more* necessary, not less. When any agent — bubble or external — calls a destructive capability, the owning element is **spotlit and locked**, a popover shows the canonical args with inline Approve/Deny buttons on screen, and the call **hangs** until a human decides.
 
 ```mermaid
 sequenceDiagram
     participant Ag as ✦ Agent (bubble or MCP)
     participant Re as ⚙️ Runtime · gate
-    participant App as 🫧 Your app
-    participant You as 👤 You · /approve
+    participant App as 🫧 Your app (with inline Approve/Deny)
+    participant You as 👤 You
     Ag->>Re: call purge_archive
-    Re->>App: intent → spotlight + lock the button
-    Re->>You: awaiting approval (canonical args)
-    You-->>Re: Approve ✅ / Deny ⛔
+    Re->>App: intent → spotlight + lock + show Approve/Deny buttons
+    Re->>You: awaiting approval (on screen)
+    You-->>App: Approve ✅ / Deny ⛔ (inline button)
+    App->>Re: decision sent
     alt Approved
       Re->>App: execute
       App-->>Ag: { ok: true }

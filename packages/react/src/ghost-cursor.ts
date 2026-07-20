@@ -13,6 +13,7 @@
 
 import type { PhaseMessage } from './spotlight.js';
 import { setGhostController } from './actions/ghost-bridge.js';
+import { resolveAgentTarget } from './resolve-target.js';
 
 export interface GhostCursor {
   handle(m: PhaseMessage): void;
@@ -113,11 +114,6 @@ function injectStyle() {
   document.head.appendChild(s);
 }
 
-function resolveEl(name: string): Element | undefined {
-  const sel = `[data-embinder-tool="${(window.CSS?.escape ?? ((x: string) => x))(name)}"]`;
-  return document.querySelector(sel) ?? undefined;
-}
-
 export function createGhostCursor(): GhostCursor {
   injectStyle();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -156,9 +152,13 @@ export function createGhostCursor(): GhostCursor {
     el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
     el.classList.add('is-on');
   }
-  // Animated move (CSS transition) — used for agent glides.
+  // Animated move (CSS transition) — used for agent glides. Duration scales with distance so a
+  // short hop stays snappy and a cross-screen flight glides gracefully (a fixed duration makes
+  // one feel sluggish and the other feel teleported). Same easing as the base stylesheet.
   function glideTo(x: number, y: number) {
-    el.style.transition = ''; // fall back to the CSS transition
+    const dist = Math.hypot(x - curX, y - curY);
+    const dur = clamp(dist * 0.9, 320, 780) / 1000; // seconds
+    el.style.transition = `transform ${dur.toFixed(2)}s cubic-bezier(.22,1,.36,1), opacity .28s ease`;
     setTransform(x, y);
   }
   // Instant move (no transition) — used per wander frame and for scroll-follow.
@@ -356,8 +356,8 @@ export function createGhostCursor(): GhostCursor {
     idleTimer = undefined;
   };
 
-  function goTarget(name: string) {
-    const t = resolveEl(name);
+  function goTarget(name: string, itemId?: string, scopeId?: string) {
+    const t = resolveAgentTarget(name, itemId, scopeId);
     target = t;
     if (t) {
       const p = pointAt(t);
@@ -367,7 +367,7 @@ export function createGhostCursor(): GhostCursor {
 
   // Appear immediately, then start roaming.
   jumpTo(curX, curY);
-  let active: { id: string; name: string } | undefined;
+  let active: { id: string; name: string; itemId?: string } | undefined;
   startWander();
 
   setGhostController({
@@ -390,19 +390,26 @@ export function createGhostCursor(): GhostCursor {
       switch (m.type) {
         case 'intent':
           if (!m.id || !m.name) break;
-          active = { id: m.id, name: m.name };
+          active = { id: m.id, name: m.name, itemId: (m.argsPreview as { id?: string } | undefined)?.id };
           cancelIdle();
           stopWander();
           el.classList.remove('is-pending', 'is-denied');
           el.classList.add('is-working');
-          goTarget(m.name);
+          goTarget(m.name, active.itemId);
+          break;
+
+        case 'focus':
+          if (!m.name) break;
+          cancelIdle(); stopWander(); el.classList.add('is-working');
+          goTarget(m.name, (m.argsPreview as { id?: string } | undefined)?.id, m.scopeId);
+          resumeIdle(700);
           break;
 
         case 'gate':
           if (!active || m.id !== active.id) break;
           cancelIdle();
           stopWander();
-          goTarget(active.name);
+          goTarget(active.name, active.itemId);
           el.classList.toggle('is-pending', m.status === 'awaiting');
           break;
 
@@ -423,7 +430,7 @@ export function createGhostCursor(): GhostCursor {
           stopWander();
           el.classList.remove('is-pending');
           el.classList.add('is-working');
-          goTarget(active.name);
+          goTarget(active.name, active.itemId);
           break;
 
         case 'done':

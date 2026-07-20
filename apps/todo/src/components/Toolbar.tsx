@@ -1,5 +1,5 @@
 import { Columns3, List as ListIcon, CalendarDays, X, Undo2, CheckCheck, type LucideIcon } from 'lucide-react';
-import { grabAnchor } from '@embinder/react';
+import { grabAnchor, grabFocusAnchor, AgentButton, AgentInput } from '@embinder/react';
 import {
   type Action, type State, type ViewMode, type Priority, type StatusFilter,
   PRIORITIES, boardStats, allTags,
@@ -36,11 +36,15 @@ export function Toolbar({ state, dispatch }: { state: State; dispatch: (a: Actio
           })}
         </div>
 
-        <input
+        {/* Agent-aware input: the agent "types" into this box to filter, and its current
+            value is reported live. One component = tool + anchor + DOM driver. */}
+        <AgentInput
+          name="set_search"
+          description="The board search box. Set it to filter visible tasks by matching text; the current query is reported as live state."
           className="tb-search"
+          {...grabFocusAnchor('search_tasks')}
           placeholder="Search tasks…"
           value={f.search}
-          {...grabAnchor('set_filter')}
           onChange={(e) => dispatch({ type: 'SET_FILTER', patch: { search: e.target.value } })}
         />
 
@@ -50,7 +54,7 @@ export function Toolbar({ state, dispatch }: { state: State; dispatch: (a: Actio
         </div>
       </div>
 
-      <div className="tb-row wrap">
+      <div className="tb-row wrap" {...grabFocusAnchor('list_tags')}>
         <span className="tb-label">Status</span>
         {(['all', 'active', 'done'] as StatusFilter[]).map((s) => (
           <button
@@ -97,17 +101,25 @@ export function Toolbar({ state, dispatch }: { state: State; dispatch: (a: Actio
       </div>
 
       <div className="tb-row wrap actions">
-        <button
+        {/* Agent-aware buttons: the agent invokes the tool, which clicks the real button
+            (same path a user takes). Undo reports its disabled state live. */}
+        <AgentButton
+          name="undo"
+          description="Undo the last board change. Disabled (and a no-op) when there is nothing to undo — the disabled state is reported live."
           className="chip"
           disabled={state.past.length === 0}
-          {...grabAnchor('undo')}
           onClick={() => dispatch({ type: 'UNDO' })}
         >
           <Undo2 size={14} strokeWidth={2} aria-hidden /> Undo{state.past.length ? ` (${state.past.length})` : ''}
-        </button>
-        <button className="chip" {...grabAnchor('mark_all_done')} onClick={() => dispatch({ type: 'MARK_ALL_DONE' })}>
+        </AgentButton>
+        <AgentButton
+          name="mark_all_done"
+          description="Mark every visible task on the board as done."
+          className="chip"
+          onClick={() => dispatch({ type: 'MARK_ALL_DONE' })}
+        >
           <CheckCheck size={14} strokeWidth={2} aria-hidden /> Mark all done
-        </button>
+        </AgentButton>
         <span className="spacer" />
         <button className="chip warn" {...grabAnchor('clear_completed')} onClick={() => dispatch({ type: 'CLEAR_COMPLETED' })}>
           Clear completed
