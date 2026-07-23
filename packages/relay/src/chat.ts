@@ -11,6 +11,7 @@ import {
   toUIMessageStream,
   type ModelMessage,
   type ToolSet,
+  type StreamTextResult,
 } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { randomUUID } from 'node:crypto';
@@ -148,7 +149,9 @@ export interface RunAgentLoopParams {
 // The one place in the repo that builds an LLM provider and runs a tool-calling loop.
 // Both mountChatRoute (browser SSE) and worker-agent-sdk's defineLLMHandler (programmatic,
 // via @embinder/relay/chat) call this — neither hand-rolls its own copy.
-export function runAgentLoop(params: RunAgentLoopParams) {
+export function runAgentLoop(
+  params: RunAgentLoopParams,
+): StreamTextResult<ToolSet, Record<string, unknown>, never> {
   const provider = createOpenAICompatible({
     name: 'byo',
     apiKey: params.apiKey ?? 'not-needed',

@@ -1,4 +1,4 @@
-import { tool, type ToolSet } from "ai";
+import { tool, type Tool, type ToolExecuteFunction, type ToolSet } from "ai";
 import type { ZodType } from "zod";
 import { runAgentLoop } from "@embinder/relay/chat";
 import type { HandlerContext, TaskHandler } from "./worker.js";
@@ -33,10 +33,17 @@ export function defineLLMHandler<TResult>(opts: DefineLLMHandlerOptions<TResult>
       );
     }
 
-    const submitResult = tool({
+    // `tool()`'s overloads resolve INPUT/OUTPUT/CONTEXT from the argument shape, but that
+    // resolution relies on conditional types (e.g. NeverOptional) that can't reduce while
+    // TResult is still an unresolved generic parameter of defineLLMHandler itself. The cast
+    // below only tells the compiler what the concrete shape *would* resolve to once TResult
+    // is bound at the call site — runtime is untouched, `execute` still just echoes `args`.
+    const submitResult = tool<TResult, TResult, Record<string, unknown>>({
       description: `Submit the final result for this task. Call this exactly once when you are done — do not respond with plain text instead.`,
       inputSchema: opts.resultSchema,
       execute: async (args: TResult) => args,
+    } as unknown as Tool<TResult, TResult, Record<string, unknown>> & {
+      execute: ToolExecuteFunction<TResult, TResult, Record<string, unknown>>;
     });
 
     const result = runAgentLoop({
