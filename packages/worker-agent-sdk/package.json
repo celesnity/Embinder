@@ -1,0 +1,26 @@
+{
+  "name": "@minder/worker-agent-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Declarative Worker Agent SDK for the Minder Blackboard Task lifecycle (register/poll/claim/handle/report) — see agent-blackboard's docs/WORKER_AGENT_GUIDE.md for the server-side contract this wraps.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --exclude \"**/*.integration.test.ts\"",
+    "test:integration": "vitest run src/worker.integration.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.10"
+  }
+}
