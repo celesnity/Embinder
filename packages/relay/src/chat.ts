@@ -9,6 +9,8 @@ import {
   convertToModelMessages,
   pipeUIMessageStreamToResponse,
   toUIMessageStream,
+  type ModelMessage,
+  type ToolSet,
 } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { randomUUID } from 'node:crypto';
@@ -126,6 +128,45 @@ export function mountChatConfigRoute(
   });
 }
 
+type StreamTextOptions = Parameters<typeof streamText>[0];
+
+export interface RunAgentLoopParams {
+  baseURL: string;
+  model: string;
+  /** Omit to fall back to `'not-needed'` — matches local endpoints (LM Studio) that ignore auth. */
+  apiKey?: string;
+  system: string;
+  messages: ModelMessage[];
+  tools: ToolSet;
+  stopWhen?: StreamTextOptions['stopWhen'];
+  prepareStep?: StreamTextOptions['prepareStep'];
+  onError?: StreamTextOptions['onError'];
+  /** Override for testing — matches @ai-sdk/provider-utils' `FetchFunction`, which is exactly `typeof fetch`. */
+  fetch?: typeof fetch;
+}
+
+// The one place in the repo that builds an LLM provider and runs a tool-calling loop.
+// Both mountChatRoute (browser SSE) and worker-agent-sdk's defineLLMHandler (programmatic,
+// via @embinder/relay/chat) call this — neither hand-rolls its own copy.
+export function runAgentLoop(params: RunAgentLoopParams) {
+  const provider = createOpenAICompatible({
+    name: 'byo',
+    apiKey: params.apiKey ?? 'not-needed',
+    baseURL: normalizeBaseURL(params.baseURL)!,
+    fetch: params.fetch,
+  });
+
+  return streamText({
+    model: provider(params.model),
+    system: params.system,
+    messages: params.messages,
+    tools: params.tools,
+    stopWhen: params.stopWhen ?? stepCountIs(6),
+    prepareStep: params.prepareStep,
+    onError: params.onError,
+  });
+}
+
 export function mountChatRoute(app: Express, deps: ChatDeps): void {
   app.post('/chat', async (req: Request, res: Response) => {
     const { messages, baseURL: bodyBaseURL, model: bodyModel } = (req.body ?? {}) as {
@@ -151,21 +192,10 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
       return res.status(400).json({ error: 'model and messages required' });
     }
 
-    const provider = createOpenAICompatible({
-      name: 'byo',
-      // LLM_KEY preferred; OPENAI_API_KEY accepted as the conventional name. Local
-      // endpoints (LM Studio) ignore it entirely.
-      apiKey: process.env.LLM_KEY ?? process.env.OPENAI_API_KEY ?? 'not-needed',
-      baseURL: normalizeBaseURL(baseURL)!,
-    });
-
-    // Abort the gate/stream if the browser disconnects.
     const controller = new AbortController();
     res.on('close', () => controller.abort());
     const session = `chat:${randomUUID()}`;
 
-    // Build AI SDK tools from the SAME registry, snapshotted at turn start (render-scoped).
-    // execute = the SAME gate. (one gate)
     const selected = () => deps.registry.selectedEntries?.(session) ?? [...deps.registry.entries()];
     const all = () => deps.registry.allEntries?.() ?? selected();
     const tools = Object.fromEntries(
@@ -183,7 +213,6 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
               session,
               controller.signal,
             );
-            // runGatedCall returns a CallToolResult wrapping JSON text; hand the LLM the value.
             const c = result.content[0] as { type: 'text'; text: string };
             return JSON.parse(c.text);
           },
@@ -191,15 +220,17 @@ export function mountChatRoute(app: Express, deps: ChatDeps): void {
       ]),
     );
 
-    const result = streamText({
-      model: provider(model!),
+    const result = runAgentLoop({
+      baseURL,
+      model: model!,
+      apiKey: process.env.LLM_KEY ?? process.env.OPENAI_API_KEY,
       system: buildOnScreenBlock(selected()),
       messages: await convertToModelMessages(messages as never),
       tools,
-      prepareStep: () => ({ activeTools: callableTools(selected()).map(([name]) => name), system: buildOnScreenBlock(selected()) }),
-      stopWhen: stepCountIs(6),
-      // Surface the real upstream failure server-side; the browser only ever sees
-      // the AI SDK's generic "An error occurred." in the stream.
+      prepareStep: () => ({
+        activeTools: callableTools(selected()).map(([name]) => name),
+        system: buildOnScreenBlock(selected()),
+      }),
       onError: ({ error }) => {
         console.error('[embinder] chat upstream error:', error);
       },

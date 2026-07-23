@@ -7,6 +7,10 @@
     "embinder-relay": "./dist/server.js"
   },
   "main": "./dist/server.js",
+  "exports": {
+    ".": "./dist/server.js",
+    "./chat": "./src/chat.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",

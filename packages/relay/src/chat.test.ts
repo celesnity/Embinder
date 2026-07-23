@@ -2,6 +2,7 @@
 // zero synthetic tools. The block is what makes the agent's context render-scoped.
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
+import { tool } from 'ai';
 import { buildOnScreenBlock, callableTools, executeFocus } from './chat.js';
 import type { CapabilityDef } from './registry.js';
 
@@ -81,6 +82,76 @@ describe('operator-configured LLM endpoint', () => {
     expect(normalizeBaseURL('https://api.openai.com/')).toBe('https://api.openai.com/v1');
     expect(normalizeBaseURL('http://127.0.0.1:1234/v1')).toBe('http://127.0.0.1:1234/v1');
     expect(normalizeBaseURL(undefined)).toBeUndefined();
+  });
+});
+
+// Minimal OpenAI-compatible /chat/completions SSE stub, adapted from scripts/e2e.mjs's
+// startStubLLM but as an injected `fetch` (hermetic, no real server) instead of a real
+// http.createServer. Turn 1 (no tool role in messages yet): emit a tool call if `toolName`
+// is set, else a final text chunk. Turn 2+ (messages contain a tool role): always final text.
+function fakeOpenAICompatibleFetch(
+  toolName: string | null,
+  toolArgs: unknown,
+  seenHeaders: Record<string, string>[] = [],
+): typeof fetch {
+  return (async (_input: string | URL | Request, init?: RequestInit) => {
+    const payload = init?.body ? JSON.parse(init.body as string) : {};
+    seenHeaders.push(Object.fromEntries(new Headers(init?.headers).entries()));
+    const hasToolResult = (payload.messages ?? []).some((m: { role: string }) => m.role === 'tool');
+    const id = 'chatcmpl-stub';
+    const created = 1700000000;
+    const send = (o: unknown) => `data: ${JSON.stringify(o)}\n\n`;
+    let sse = '';
+    if (!hasToolResult && toolName) {
+      sse += send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: toolName, arguments: '' } }] }, finish_reason: null }] });
+      sse += send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: JSON.stringify(toolArgs) } }] }, finish_reason: null }] });
+      sse += send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] });
+    } else {
+      sse += send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: { role: 'assistant', content: 'done' }, finish_reason: null }] });
+      sse += send({ id, object: 'chat.completion.chunk', created, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+    }
+    sse += 'data: [DONE]\n\n';
+    return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  }) as typeof fetch;
+}
+
+describe('runAgentLoop', () => {
+  it('runs a tool the model calls, then resolves the final text', async () => {
+    const { runAgentLoop } = await import('./chat.js');
+    const echo = tool({
+      description: 'Echo text back',
+      inputSchema: z.object({ text: z.string() }),
+      execute: async ({ text }: { text: string }) => ({ echoed: text }),
+    });
+
+    const result = runAgentLoop({
+      baseURL: 'http://fake.local/v1',
+      model: 'stub-model',
+      system: 'test',
+      messages: [{ role: 'user', content: 'say hi' }],
+      tools: { echo },
+      fetch: fakeOpenAICompatibleFetch('echo', { text: 'hi' }),
+    });
+
+    const toolCalls = await result.toolCalls;
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]).toMatchObject({ toolName: 'echo', input: { text: 'hi' } });
+    expect(await result.text).toBe('done');
+  });
+
+  it('defaults apiKey to "not-needed" when unset', async () => {
+    const { runAgentLoop } = await import('./chat.js');
+    const seenHeaders: Record<string, string>[] = [];
+    const result = runAgentLoop({
+      baseURL: 'http://fake.local/v1',
+      model: 'stub-model',
+      system: 'test',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: {},
+      fetch: fakeOpenAICompatibleFetch(null, undefined, seenHeaders),
+    });
+    expect(await result.text).toBe('done');
+    expect(seenHeaders[0]?.authorization).toBe('Bearer not-needed');
   });
 });
 
