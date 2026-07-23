@@ -61,6 +61,17 @@ export function defineLLMHandler<TResult>(opts: DefineLLMHandlerOptions<TResult>
     if (!submitCall) {
       throw new Error(`LLM did not call ${SUBMIT_RESULT_TOOL} within the step budget`);
     }
-    return submitCall.input as TResult;
+
+    // The AI SDK does NOT validate tool call arguments against `inputSchema` before they land
+    // in `result.toolCalls` — `submitCall.input` is the raw, unvalidated model output. This SDK
+    // must enforce resultSchema itself; use safeParse (not parse) so we control the thrown
+    // error's message rather than propagating a raw ZodError.
+    const parsed = opts.resultSchema.safeParse(submitCall.input);
+    if (!parsed.success) {
+      throw new Error(
+        `LLM's ${SUBMIT_RESULT_TOOL} call did not match resultSchema: ${parsed.error.message}`,
+      );
+    }
+    return parsed.data;
   };
 }
