@@ -136,7 +136,7 @@ just a handler function that fits the contract that already exists.
 | `LLM_BASE_URL`/`LLM_MODEL` unset | `defineLLMHandler`, before calling `runAgentLoop` | throw → `fail_task` |
 | Upstream LLM/network error | inside `runAgentLoop`'s `streamText` call | throw propagates → `fail_task` |
 | LLM never calls `submit_result` in the step budget | `defineLLMHandler`, after `stopWhen` fires | throw → `fail_task` |
-| `submit_result` args fail `resultSchema` validation | AI SDK's own tool-input validation (same mechanism chat.ts's tools already use) | throw → `fail_task` |
+| `submit_result` args fail `resultSchema` validation | `defineLLMHandler` itself, via `opts.resultSchema.safeParse(submitCall.input)` after `result.toolCalls` resolves (the AI SDK does not validate tool-call input against `inputSchema` before it lands in `toolCalls`) | throw → `fail_task` |
 | `403`/`409` on `claim_task` | unchanged — handled entirely inside `worker.ts`'s existing poll loop, before a handler ever runs | unchanged (parent spec's Decisions table) |
 
 No new error type. No approval-pending state — confirmed non-goal.

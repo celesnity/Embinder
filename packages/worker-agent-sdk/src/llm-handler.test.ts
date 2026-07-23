@@ -131,10 +131,11 @@ describe("defineLLMHandler", () => {
   it("throws when the LLM calls submit_result with input that fails resultSchema", async () => {
     process.env.LLM_BASE_URL = "http://fake.local/v1";
     process.env.LLM_MODEL = "stub-model";
-    // `diagnosis` is required per the schema below; the stub omits it, so the AI SDK's own
-    // tool-input validation rejects this call — it never becomes a matched submit_result call,
-    // so this exercises the same "no valid submit_result" failure path as the test above, just
-    // via a schema mismatch instead of the LLM never calling the tool at all.
+    // `diagnosis` is required per the schema below, but the stub omits it. The AI SDK does NOT
+    // validate tool-call input against `inputSchema` itself — this stubbed call passes through
+    // and becomes a normal matched submit_result entry in `result.toolCalls`, just with invalid
+    // `.input` ({ wrongField: "oops" }). It's `defineLLMHandler`'s own
+    // `opts.resultSchema.safeParse(submitCall.input)` check that detects the mismatch and throws.
     vi.stubGlobal("fetch", fakeOpenAICompatibleFetch("submit_result", { wrongField: "oops" }));
 
     const handler = defineLLMHandler({
