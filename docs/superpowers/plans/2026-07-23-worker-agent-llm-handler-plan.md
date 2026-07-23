@@ -590,3 +590,56 @@ Update `docs/superpowers/plans/2026-07-23-worker-agent-llm-handler-plan.md`'s (t
 git add docs/superpowers/plans/2026-07-23-worker-agent-llm-handler-plan.md
 git commit -m "docs: record worker-agent-llm-handler verification evidence"
 ```
+
+## Status at time of writing
+
+Executed via superpowers:subagent-driven-development, with an explicit ordering override from the
+repo owner: all tasks' code was written first, tests deferred to one consolidated pass at the end
+(not the plan's original per-task TDD RED/GREEN checkpoints).
+
+- **Task 1** (`runAgentLoop` + `mountChatRoute` refactor + `@embinder/relay/chat` export):
+  commits `adbdc6b..3ec54ee`. Task review: approved, no Critical/Important findings.
+- **Task 2** (`defineLLMHandler`): commits `3ec54ee..39369b0`. Task review: approved, no
+  Critical/Important findings.
+- **Consolidated verification** (this is where deferred tests actually ran) surfaced two real
+  issues the per-task checkpoints would normally have caught immediately:
+  - `npm run typecheck` initially failed: TS4058 in `chat.ts` (`runAgentLoop`'s inferred return
+    type referenced `ai`'s internal, unexported `Output` type — undeclarable in a `.d.ts` with
+    `declaration: true`) and TS2769 in `llm-handler.ts` (`tool()`'s conditional-type overloads
+    can't resolve under `defineLLMHandler`'s own unresolved `TResult` generic). Fixed in commit
+    `5914b5e` — an explicit `StreamTextResult<ToolSet, Record<string, unknown>, never>` return
+    annotation on `runAgentLoop`, and explicit `tool<TResult, TResult, Record<string, unknown>>()`
+    type arguments plus a documented `as unknown as` cast in `llm-handler.ts`. No runtime
+    behavior changed by this fix.
+  - `npm run test` initially failed 2/14 in `llm-handler.test.ts`: the design's error-handling
+    table assumed the AI SDK itself would reject a `submit_result` tool call whose arguments
+    fail `resultSchema` before it reached `result.toolCalls` — empirically false, it passes
+    through unvalidated. Fixed in commit `f2c70be` — `defineLLMHandler` now runs
+    `opts.resultSchema.safeParse(submitCall.input)` itself rather than trusting the AI SDK to
+    have already validated it. The second failure was an over-specific test assertion (asserted
+    a literal upstream error message the AI SDK doesn't actually preserve); loosened to assert
+    only that the promise rejects, since that's what actually matters for the `fail_task` mapping.
+
+**Evidence — final consolidated run, both commands from repo root, exit 0 / all green:**
+
+```
+$ npm run typecheck
+> @embinder/react@0.1.0 typecheck  → tsc -p tsconfig.json --noEmit   (exit 0)
+> @embinder/relay@0.1.0 typecheck  → tsc -p tsconfig.json --noEmit   (exit 0)
+> @minder/worker-agent-sdk@0.1.0 typecheck → tsc -p tsconfig.json --noEmit   (exit 0)
+
+$ npm run test
+> @embinder/react@0.1.0 test        → Test Files  16 passed (16) | Tests  53 passed (53)
+> @embinder/relay@0.1.0 test        → Test Files  5 passed (5)   | Tests  19 passed (19)
+> @minder/worker-agent-sdk@0.1.0 test → Test Files 2 passed (2)  | Tests  14 passed (14)
+```
+
+Single-call-site check (`grep -rn "createOpenAICompatible(\|generateText(" packages --include="*.ts" | grep -v ".test.ts"`): exactly one match, `packages/relay/src/chat.ts:152`, inside `runAgentLoop`. `generateText(` has zero matches anywhere.
+
+**Takeaway on the ordering override:** both defects found at the consolidated-verification stage
+would have been caught immediately by the plan's original per-task typecheck/test steps. The
+batch-code-then-test ordering traded that earlier, cheaper signal for uninterrupted coding
+throughput — it worked out here (two contained, mechanical-scope fixes), but the cost is real:
+diagnosing a compile/type error against two just-written packages at once takes more context than
+diagnosing it against one freshly-written file. This traded a tighter feedback loop for now, in
+exchange for uninterrupted forward progress.
