@@ -9,6 +9,8 @@ import { ScopeTree, type ScopeResult } from './scope-tree.js';
 export interface CapabilityDef {
   config: { description?: string; inputSchema?: ZodRawShape; annotations?: Record<string, unknown> };
   destructive: boolean;
+  /** Original browser JSON Schema, retained for server-only background operators. */
+  jsonSchema?: unknown;
   /** Latest bound-state snapshot from the app (D-4). */
   contextState?: unknown;
   contextTs?: number;
@@ -105,6 +107,11 @@ export class CapabilityRegistry {
 
   entries(): IterableIterator<[string, CapabilityDef]> {
     return this.defs.entries();
+  }
+
+  /** Real browser actions available to a background operator; excludes context and synthetic focus tools. */
+  operatorEntries(): Array<[string, CapabilityDef]> {
+    return [...this.defs].filter(([, def]) => !def.config.annotations?.embinderContextOnly);
   }
 
   registerScope(scope: { id: string; parentId?: string; name: string }): void { this.scopes.register(scope); }

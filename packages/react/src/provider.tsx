@@ -20,6 +20,7 @@ import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
 const PHASE_TYPES = new Set(['intent', 'gate', 'decided', 'focus']);
 const DIRECT_PHASE_EVENT = 'embinder:direct-ui-phase';
+const APP_EVENT = 'embinder:app-event';
 
 interface Shim {
   modelContext: ModelContextSurface;
@@ -46,6 +47,17 @@ export function subscribeEmbinderPhase(listener: (phase: PhaseMessage) => void):
   };
   window.addEventListener(DIRECT_PHASE_EVENT, onPhase);
   return () => window.removeEventListener(DIRECT_PHASE_EVENT, onPhase);
+}
+
+/** Subscribe to generic relay-pushed application events without coupling the SDK to an app domain. */
+export function subscribeEmbinderAppEvent(listener: (event: { name: string; [key: string]: unknown }) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const onEvent = (event: Event) => {
+    const detail = (event as CustomEvent<{ name?: unknown }>).detail;
+    if (detail && typeof detail.name === 'string') listener(detail as { name: string; [key: string]: unknown });
+  };
+  window.addEventListener(APP_EVENT, onEvent);
+  return () => window.removeEventListener(APP_EVENT, onEvent);
 }
 
 // Internal: bound-state snapshots from useEmbinder ride the same socket (D-4).
@@ -126,6 +138,10 @@ function createShim(url: string, token: string | undefined, native: ModelContext
       // T-K: forward display-only phase events to the spotlight.
       if (PHASE_TYPES.has(m.type)) {
         phaseListener?.(m);
+        return;
+      }
+      if (m.type === 'app-event') {
+        window.dispatchEvent(new CustomEvent(APP_EVENT, { detail: m }));
         return;
       }
       if (m.type !== 'call') return;

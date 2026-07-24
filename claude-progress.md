@@ -22,6 +22,21 @@ The progress log. Every session reads this first and updates it last.
 
 ## Session Record
 
+### 2026-07-23 - Blackboard background Todo operator
+
+- **Scope:** replaced the abandoned Todo-side Blackboard enrichment intake with a background-only operator design. External agents create natural-language `todo-operate` Blackboard tasks; `todo-worker.mjs` claims them, gets the live Todo capability/context snapshot through a server-only relay token, invokes existing browser tools through the relay, and completes/fails through the Worker Agent SDK lifecycle. Todo has no Blackboard UI or task-creation path.
+- **Verification:** `npm run test` -> React 17 files/54 tests, relay 5 files/20 tests, worker SDK 3 files/16 tests PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> `E2E + GATE GREEN`, including 401 without operator credential and authenticated mounted-tool snapshot discovery.
+- **Remaining verification:** the real Blackboard server + LLM + Todo browser task execution flow is not run on this host. It remains required before this integration can be called complete.
+- **No commit:** per user instruction.
+
+### 2026-07-23 - Todo ⇄ Blackboard enrichment implementation
+
+- **Scope:** added the relay-local Blackboard REST client and bridge, Todo task intake/poll-result delivery, generic `app-event` forwarding in `@embinder/react`, stable caller-supplied Todo IDs for result correlation, and a `todo-worker` process using `defineLLMHandler`.
+- **Feature-off behavior:** `BLACKBOARD_URL` unset keeps `/blackboard-tasks` at 503, while the Todo UI continues normally and `todo-worker.mjs` logs that it is idle.
+- **Verification on this host:** `node --import tsx scripts/todo-worker.mjs` -> worker reports `BLACKBOARD_URL not set — enrichment worker stays idle.`; `npm run test` -> React 17 files/54 tests, relay 7 files/25 tests, worker SDK 2 files/14 tests, Todo 1 file/1 test all PASS; `npm run typecheck` -> exit 0; `npm run e2e` -> `E2E + GATE GREEN`.
+- **Known remaining verification:** the required real `agent-blackboard` + LLM + browser proof is not run: no local blackboard server / model endpoint was supplied for this session. Confirm a browser-added task becomes a completed blackboard task and visibly enriches the matching card without refresh before calling this integration complete.
+- **No commit:** per user request.
+
 ### 2026-07-20 - Context proofing focus scopes
 
 - **Scope:** added `AgentScope` to `@embinder/react`; declared semantic summaries and scope ancestry reach the relay without DOM scraping. Descendant tools inherit `embinderScope` automatically.

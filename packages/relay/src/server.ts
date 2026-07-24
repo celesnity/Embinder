@@ -49,6 +49,7 @@ const policy = loadPolicy(POLICY_PATH);
 const ENABLE_MCP = process.env.EMBINDER_ENABLE_MCP !== 'false';
 const ENABLE_CHAT = process.env.EMBINDER_ENABLE_CHAT !== 'false';
 const DIRECT_TOKEN = process.env.EMBINDER_DIRECT_TOKEN;
+const OPERATOR_TOKEN = process.env.EMBINDER_OPERATOR_TOKEN;
 
 // ---- T-G1: one-time loopback tokens -----------------------------------------
 const APP_TOKEN = mintToken(); // ws /app (browser app)
@@ -320,11 +321,50 @@ app.post('/internal/direct-call', async (req: Request, res: Response, next: Next
   }
 });
 
+const operatorAuthorized = (req: Request): boolean =>
+  Boolean(OPERATOR_TOKEN && tokenMatches(req.header('x-embinder-operator-token'), OPERATOR_TOKEN));
+
+// Server-only background-operator bridge. It deliberately exposes neither browser tokens nor a
+// Todo-specific API: the worker sees only the tools the current browser module has registered.
+app.get('/internal/operator/snapshot', (req: Request, res: Response) => {
+  if (!operatorAuthorized(req)) return res.sendStatus(401);
+  if (!appSocket || appSocket.readyState !== WebSocket.OPEN) {
+    return res.status(503).json({ error: 'todo_module_unavailable' });
+  }
+  return res.json({
+    tools: registry.operatorEntries().map(([name, def]) => ({
+      name,
+      description: def.config.description,
+      inputSchema: def.jsonSchema,
+      context: def.contextState,
+    })),
+  });
+});
+
+app.post('/internal/operator/call', async (req: Request, res: Response, next: NextFunction) => {
+  if (!operatorAuthorized(req)) return res.sendStatus(401);
+  if (!appSocket || appSocket.readyState !== WebSocket.OPEN) {
+    return res.status(503).json({ error: 'todo_module_unavailable' });
+  }
+  const name = typeof req.body?.name === 'string' ? req.body.name : '';
+  const taskId = typeof req.body?.taskId === 'string' ? req.body.taskId : '';
+  const def = registry.get(name);
+  if (!taskId || !def || def.config.annotations?.embinderContextOnly) {
+    return res.status(404).json({ error: 'todo_capability_unavailable' });
+  }
+  try {
+    return res.json(await runGatedCall(name, req.body?.args ?? {}, def.destructive, `operator:${taskId}`, new AbortController().signal));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 const httpServer = app.listen(PORT, HOST, () => {
   console.log(`[embinder] relay on http://${HOST}:${PORT}/mcp  (ws app: ws://${HOST}:${PORT}/app)`);
   console.log(`[embinder] approvals: on screen (inline Approve/Deny in the app tab)`);
   console.log(`[embinder] audit log: ${AUDIT_PATH}`);
 });
+
 
 const wss = new WebSocketServer({ server: httpServer, path: '/app' });
 wss.on('connection', (ws, req) => {
@@ -349,6 +389,7 @@ wss.on('connection', (ws, req) => {
             annotations: m.tool.annotations,
           },
           destructive: Boolean(m.tool.annotations?.destructiveHint),
+          jsonSchema: m.tool.inputSchema,
           scopeId: typeof m.tool.annotations?.embinderScope === 'string' ? m.tool.annotations.embinderScope : undefined,
         };
         registry.register(m.tool.name, def);

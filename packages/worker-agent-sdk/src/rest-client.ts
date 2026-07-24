@@ -51,6 +51,15 @@ export async function registerAgent(
   });
 }
 
+/** Records liveness for a previously registered worker. The server returns 204 on success. */
+export async function heartbeatAgent(
+  cfg: BlackboardConnectionConfig,
+  args: { agentId: string },
+): Promise<void> {
+  const response = await request(cfg, `/api/v1/agents/${args.agentId}/heartbeat`, { method: "POST" });
+  if (!response.ok) throw await BlackboardApiError.fromResponse(response);
+}
+
 export async function listTasks(
   cfg: BlackboardConnectionConfig,
   args: { blackboardId: string; capability?: string; status?: TaskStatus },

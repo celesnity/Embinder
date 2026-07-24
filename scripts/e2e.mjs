@@ -88,6 +88,7 @@ const relay = spawn(process.execPath, ['--import', 'tsx', 'packages/relay/src/se
     ...process.env,
     LLM_BASE_URL: 'http://127.0.0.1:4242/v1',
     LLM_MODEL: 'demo-model',
+    EMBINDER_OPERATOR_TOKEN: 'e2e-operator-token',
     GMC_INLINE_APPROVAL: '0',
   },
 });
@@ -201,6 +202,16 @@ try {
   assert(!tools.some((t) => t.startsWith('list_')), 'SC-3 zero list_* read tools exist');
   assert(!tools.includes('__gmc_ready'), 'internal primer hidden from tools/list');
 
+  // Background operator bridge is server-only, but sees the current browser capabilities.
+  const operatorUnauthorized = await fetch(`${BASE}/internal/operator/snapshot`);
+  assert(operatorUnauthorized.status === 401, `operator snapshot rejects missing token (got ${operatorUnauthorized.status})`);
+  const operatorSnapshot = await fetch(`${BASE}/internal/operator/snapshot`, {
+    headers: { 'x-embinder-operator-token': 'e2e-operator-token' },
+  });
+  const operatorBody = await operatorSnapshot.json();
+  assert(operatorSnapshot.status === 200 && operatorBody.tools.some((tool) => tool.name === 'add_task'),
+    'operator snapshot exposes mounted Todo actions');
+
   // write passes the gate straight through
   const add = JSON.parse((await client.callTool({ name: 'add_task', arguments: { text: 'milk' } })).content[0].text);
   assert(add.ok === true, `SC-1 add_task (write) passes gate (got: ${JSON.stringify(add)})`);
@@ -238,10 +249,10 @@ try {
   await badP.catch(() => {});
 
   // --- fidelity: hidden unicode flagged, canonical executes (AC-5) ---------
-  const tamperP = client.callTool({ name: 'delete_task', arguments: { id: 't1​​' } });
+  const tamperP = client.callTool({ name: 'bulk_delete', arguments: { id: 't1​​' } });
   const pend4 = await firstPending();
   assert(pend4 && pend4.tampered === true, 'SC-6 tampered args flagged (raw ≠ canonical)');
-  assert(pend4.canonical.ids[0] === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
+  assert(pend4.canonical.id === 't1', `SC-6 canonical strips hidden unicode (got: ${JSON.stringify(pend4.canonical)})`);
   await decide(pend4.id, false);
   await tamperP.catch(() => {});
 

@@ -263,6 +263,24 @@ describe("WorkerAgent", () => {
     expect(Date.now() - before).toBeLessThan(50);
   });
 
+  it("sends periodic heartbeats while idle so Blackboard can show the worker as healthy", async () => {
+    const { fetch: fake, calls } = fakeFetch((call) => {
+      if (call.method === "POST" && call.path === "/api/v1/agents") {
+        return jsonResponse(200, { id: "agent-1", tenant_id: "t", name: config.name, labels: [], capabilities: config.capabilities });
+      }
+      if (call.method === "POST" && call.path === "/api/v1/agents/agent-1/heartbeat") return new Response(null, { status: 204 });
+      if (call.method === "GET" && call.path.startsWith("/api/v1/tasks?")) return jsonResponse(200, []);
+      return undefined;
+    });
+    vi.stubGlobal("fetch", fake);
+    const worker = defineWorkerAgent(config);
+    worker.handle("diagnostics", async () => "unreachable");
+    const running = worker.run({ leaseSeconds: 300, pollIntervalMs: 5, heartbeatIntervalMs: 1 });
+    await waitFor(() => calls.some((call) => call.path === "/api/v1/agents/agent-1/heartbeat"));
+    worker.stop();
+    await running;
+  });
+
   it("rejects handle() for a capability not in the declared capabilities list", () => {
     const worker = defineWorkerAgent(config);
     expect(() => worker.handle("unrelated-capability", async () => undefined)).toThrow();

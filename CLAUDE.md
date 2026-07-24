@@ -71,3 +71,10 @@ with the reason, and record what verification is still owed.
 - `feature_list.json` reflects reality - no false `passing` entries.
 - No half-finished, unrecorded work. The next session can continue from repo artifacts alone.
 - Do not commit unless asked. `audit.jsonl` and `.grabmycursor/` are gitignored runtime output.
+
+## Git branching and sprint workflow
+
+Follow `AGENTS.md` as the authoritative branch policy. In particular, never start implementation,
+commit, merge, or push on `main`, `release/*`, or `development`. Work only on `feat/<name>` created
+from the active `release/0.0.x`; protected-branch changes happen only through CI-green, approved
+pull requests according to the documented sprint lifecycle.

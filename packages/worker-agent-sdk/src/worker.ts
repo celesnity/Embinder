@@ -1,5 +1,5 @@
 import { BlackboardApiError } from "./errors.js";
-import { claimTask, completeTask, failTask, listTasks, registerAgent } from "./rest-client.js";
+import { claimTask, completeTask, failTask, heartbeatAgent, listTasks, registerAgent } from "./rest-client.js";
 import type { BlackboardConnectionConfig, Task } from "./types.js";
 
 export interface WorkerAgentConfig extends BlackboardConnectionConfig {
@@ -32,6 +32,8 @@ export interface RunOptions {
    * docs/WORKER_AGENT_GUIDE.md). If omitted, the error is thrown and `run()` stops instead.
    */
   onError?: (error: BlackboardApiError) => void;
+  /** Liveness cadence for Blackboard's agent directory. Defaults to 30 seconds. */
+  heartbeatIntervalMs?: number;
 }
 
 function sleep(ms: number): { promise: Promise<void>; cancel: () => void } {
@@ -91,10 +93,16 @@ export class WorkerAgent {
       capabilities: this.config.capabilities,
     });
     const agentId = agent.id;
+    const heartbeatIntervalMs = options.heartbeatIntervalMs ?? 30_000;
+    let nextHeartbeatAt = Date.now() + heartbeatIntervalMs;
 
     this.stopped = false;
 
     while (!this.stopped) {
+      if (Date.now() >= nextHeartbeatAt) {
+        await heartbeatAgent(this.config, { agentId });
+        nextHeartbeatAt = Date.now() + heartbeatIntervalMs;
+      }
       const claimedAndHandled = await this.pollOnce(pollableCapabilities, agentId, options);
       if (this.stopped) break;
       if (!claimedAndHandled) {

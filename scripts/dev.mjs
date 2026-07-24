@@ -8,6 +8,7 @@ const useShell = process.platform === 'win32';
 const procs = [
   { name: 'relay', color: '\x1b[36m', cmd: 'npm', args: ['run', 'dev', '-w', '@embinder/relay'] },
   { name: 'todo ', color: '\x1b[35m', cmd: 'npm', args: ['run', 'dev', '-w', 'todo'] },
+  { name: 'worker', color: '\x1b[33m', cmd: 'node', args: ['--import', 'tsx', 'scripts/todo-worker.mjs'] },
 ];
 
 const children = procs.map(({ name, color, cmd, args }) => {
@@ -39,4 +40,4 @@ const killChild = (c) => {
 const shutdown = () => { for (const c of children) killChild(c); process.exit(0); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-console.log('\x1b[32m[embinder]\x1b[0m relay → http://127.0.0.1:7331  ·  todo → http://localhost:5173  ·  approvals → on screen in the app tab');
+console.log('\x1b[32m[embinder]\x1b[0m relay → http://127.0.0.1:7331  ·  todo → http://localhost:5173  ·  worker → BLACKBOARD_URL-gated  ·  approvals → on screen in the app tab');

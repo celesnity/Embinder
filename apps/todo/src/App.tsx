@@ -36,7 +36,6 @@ const VIEW_TABS: { id: ViewMode; label: string; icon: LucideIcon }[] = [
   { id: 'list', label: 'List', icon: ListIcon },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
 ];
-
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [sort, setSort] = useState<SortKey>('priority');

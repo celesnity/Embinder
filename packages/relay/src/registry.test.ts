@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CapabilityRegistry, type CapabilityDef } from './registry.js';
 import { requestApproval, cancelByTool, decide } from './approval.js';
+import { z } from 'zod';
 
 const def = (): CapabilityDef => ({ config: { description: 'x' }, destructive: false });
 
@@ -9,6 +10,22 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('CapabilityRegistry', () => {
+  it('returns only callable tools with original JSON schemas for an operator', () => {
+    const registry = new CapabilityRegistry();
+    registry.register('add_task', {
+      config: { inputSchema: { text: z.string() } },
+      destructive: false,
+      jsonSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+    });
+    registry.register('current_screen', {
+      config: { annotations: { embinderContextOnly: true } },
+      destructive: false,
+    });
+    expect(registry.operatorEntries()).toEqual([
+      ['add_task', expect.objectContaining({ jsonSchema: expect.any(Object) })],
+    ]);
+  });
+
   it('shows scoped actions only after focus and rejects stale calls', () => {
     const reg = new CapabilityRegistry();
     reg.registerScope({ id: 'inbox', name: 'inbox' });
