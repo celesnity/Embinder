@@ -16,7 +16,15 @@ export function tokenMatches(a: string | undefined, b: string | undefined): bool
   return timingSafeEqual(ba, bb);
 }
 
-export const ALLOWED_HOSTS = ['127.0.0.1:7331', 'localhost:7331'];
+// Loopback defaults, plus any extra `host:port` values from EMBINDER_ALLOWED_HOSTS
+// (comma-separated) — e.g. a containerized deployment reaching this relay by its
+// Docker service name rather than localhost. Mirrors agent-blackboard's
+// MCP_ALLOWED_HOSTS env var for the same DNS-rebinding-protection tradeoff.
+export const ALLOWED_HOSTS = [
+  '127.0.0.1:7331',
+  'localhost:7331',
+  ...(process.env.EMBINDER_ALLOWED_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean) ?? []),
+];
 export const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
