@@ -44,35 +44,36 @@ keys out of product code unless the deployment explicitly requires an override.
   bubble (dynamic-imported).
 
 Why it must be the provider (not manual setup): it installs the `document.modelContext` shim
-**during render**, so your child components' `useWebMCP` calls see it. There is **no `<script>`
+**during render**, so your child components' `useEmbinder` calls see it. There is **no `<script>`
 tag** — it's an ESM React import.
 
-## 2. Declare each action with `useWebMCP`
+## 2. Declare each action with `useEmbinder`
 
-One `useWebMCP({...})` call per agent-callable action. The `inputSchema` is a **Zod raw shape**
-(an object of validators, or `{}` for no args) — not a wrapped `z.object(...)`. From
+One `useEmbinder({...})` call per agent-callable action. Its `input` is a **Zod raw shape**
+(an object of validators, or omitted for no args) — not a wrapped `z.object(...)`. From
 `apps/todo/src/App.tsx`:
 
 ```tsx
 import { z } from "zod";
-import { useWebMCP, grabAnchor } from "@embinder/react";
+import { useEmbinder } from "@embinder/react";
 
-useWebMCP({
+const addTask = useEmbinder({
   name: "add_task",
   description: "Add a new task to the board",
-  inputSchema: { text: z.string().describe("Task text") },
-  annotations: { title: "Add task" },
+  title: "Add task",
+  input: { text: z.string().describe("Task text") },
   handler: async ({ text }: { text: string }) => {
     dispatch({ type: "ADD", text });
     return { ok: true, added: text };
   },
 });
 
-useWebMCP({
+useEmbinder({
   name: "delete_task",
   description: "Delete a single task by id",
-  inputSchema: { id: z.string() },
-  annotations: { title: "Delete task", destructiveHint: true },
+  title: "Delete task",
+  input: { id: z.string() },
+  destructive: true,
   handler: async ({ id }: { id: string }) => {
     dispatch({ type: "DELETE", id });
     return { ok: true, id };
@@ -84,9 +85,9 @@ Tool-definition fields:
 
 - `name` — unique tool id; **must match the name in `embinder.policy.json`**.
 - `description` — the natural-language description the agent reads.
-- `inputSchema` — Zod raw shape.
-- `annotations` — `{ title, readOnlyHint?, destructiveHint? }`. `destructiveHint: true` is only a
-  _default_ risk hint; the server policy overrides it.
+- `input` — Zod raw shape.
+- `title` and `destructive` — presentation metadata and a default risk hint; the server policy
+  overrides the hint.
 - `handler` — the async function that performs the real UI action (here, dispatch to the app's
   reducer). Its return value becomes the tool result the agent sees. **The handler runs in the
   browser and never leaves it.**
@@ -103,11 +104,11 @@ handler: async () => ({ tasks: tasksRef.current }),
 
 ## 3. Anchor each tool to its DOM element
 
-Spread `grabAnchor(name)` onto the element the tool drives, so the spotlight can highlight and
-lock it. `grabAnchor` just stamps a `data-embinder-tool` attribute (`apps/todo/src/App.tsx`):
+Spread the binding returned by `useEmbinder` onto the element the tool drives, so the spotlight can
+highlight and lock it. Use `grabAnchor(name)` only when the declaration and DOM owner are separate:
 
 ```tsx
-<button {...grabAnchor('add_task')} onClick={add}>Add</button>
+<button {...addTask} onClick={add}>Add</button>
 <button className="danger" {...grabAnchor('delete_all_tasks')} onClick={() => dispatch({ type: 'CLEAR' })}>
   Clear all
 </button>
@@ -140,11 +141,11 @@ app's `destructiveHint`, decides what pauses. Current file:
 ```
 
 - `read` / `write` → pass through the gate automatically.
-- `destructive` → **pauses for out-of-tab human approval**.
+- `destructive` → **pauses for inline human approval**.
 - `unknownTool: "destructive"` → any tool not listed is deny-by-default (pauses).
 - `rateLimit.perToolPerMin` → per-`session:tool` cap enforced in the gate.
 
-Add every new tool here. A tool you declare with `useWebMCP` but forget to list will be treated
+Add every new tool here. A tool you declare with `useEmbinder` but forget to list will be treated
 as `destructive` (safe default) and always pause. Keep `__gmc_ready: "read"` — it's the internal
 primer tool.
 
@@ -201,7 +202,7 @@ The general pattern (any app):
 that bites React devs going direct-wire:
 
 > **`inputSchema` on the wire is JSON Schema, not a Zod raw shape.** In React you write
-> `inputSchema: { text: z.string() }` and `useWebMCP` converts it. Talking to the relay directly
+> `input: { text: z.string() }` and `useEmbinder` converts it. Talking to the relay directly
 > (or via the bridge) you must send
 > `{ type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }` — the relay's
 > `toZodShape` reads only `properties`/`required`. Send the Zod form direct-wire and the tool

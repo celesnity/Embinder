@@ -265,6 +265,18 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Stack health is deliberately non-sensitive: it exposes readiness only, never
+// minted tokens, policy contents, model configuration, or registered tool names.
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    service: 'embinder-relay',
+    status: 'ok',
+    ready: true,
+    dependencies: [],
+    capabilities: ['browser-tool-bridge', 'policy-gate', 'approval-audit'],
+  });
+});
+
 // CORS for the app tab (:5173) so the browser bubble can POST /chat and /api/decide.
 // Origin is already allowlisted by the middleware above; echo it and answer preflights.
 app.use((req: Request, res: Response, next: NextFunction) => {

@@ -1,5 +1,6 @@
 export { EmbinderProvider } from './provider.js';
 export type { EmbinderProviderProps } from './provider.js';
+export type { EmbinderMotionMode } from './motion-policy.js';
 export { useEmbinder } from './use-embinder.js';
 export type { EmbinderDescriptor, EmbinderBind } from './use-embinder.js';
 export { getModelContext } from './model-context.js';

@@ -3,6 +3,7 @@
 
 export { EmbinderProvider, emitEmbinderPhase, subscribeEmbinderAppEvent } from './provider.js';
 export type { EmbinderProviderProps } from './provider.js';
+export type { EmbinderMotionMode } from './motion-policy.js';
 
 // The pointer primitive: declare + anchor + lifecycle in one call.
 export { useEmbinder } from './use-embinder.js';

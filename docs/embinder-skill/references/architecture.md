@@ -18,7 +18,7 @@ npm workspaces, TypeScript + ESM, Node >= 20. Root `package.json` declares
 
 | Path | `name` | Role |
 |---|---|---|
-| `packages/react` | `@embinder/react` | App-side SDK: `EmbinderProvider`, re-exported `useWebMCP`, `grabAnchor`, spotlight, chat bubble. |
+| `packages/react` | `@embinder/react` | App-side SDK: `EmbinderProvider`, `useEmbinder`, `useRoute`, agent components, `grabAnchor`, spotlight, and chat bubble. |
 | `packages/relay` | `@embinder/relay` | Node MCP server + ws app-hub + **server-side policy/approval gate** + audit + chat loop. The core differentiator. |
 | `apps/todo` | `todo` | React reference integration: provider, actions, context, resident chat, spotlight, and ghost cursor. |
 | `apps/pocketbase` | *(Go server + vanilla/Shablon/Vite UI)* | Non-React reference integration. Its Admin UI uses a framework-neutral bridge, authenticated PocketBase SDK actions, live collection/schema context, the shared mascot/cursor, chat, CSP allowances, and embedded production assets. It is not an npm workspace, so run its UI and Go checks explicitly. |
@@ -59,8 +59,15 @@ surface is `index.ts`, which exports:
 - `EmbinderProvider` + type `EmbinderProviderProps` (from `provider.tsx`)
 - `grabAnchor(name)` → `{ 'data-embinder-tool': name }` — spread onto the element a tool drives
 - `getModelContext` + types `ToolDescriptor`, `ModelContextSurface` (from `model-context.ts`)
-- `useWebMCP` — **re-exported straight from `@mcp-b/react-webmcp`** so apps declare tools with
-  one import
+- `useEmbinder` — the current pointer primitive. It registers a tool with the live browser handler,
+  sends bounded context snapshots, returns a `data-embinder-tool` binding, and unregisters on
+  unmount.
+- `useRoute`, `useScrollTarget`, `useDraggable`, and `useDropZone` — action declarations that
+  synthesize the built-in `ui_navigate`, `ui_scroll_to`, and `ui_drag_and_drop` tools through the
+  same relay gate.
+- `AgentButton`, `AgentLink`, `AgentInput`, `AgentSelect`, `AgentScope`, and related components —
+  explicit semantic bindings for normal browser interactions; they do not enable arbitrary DOM
+  scraping.
 - type `ChatBubbleConfig` (from `chat/ChatBubble.tsx`)
 
 ### `provider.tsx` — the heart of the app side
@@ -68,7 +75,7 @@ surface is `index.ts`, which exports:
 
 - **Installs a `document.modelContext` shim during render, not in an effect.** React runs
   child effects before parent effects, so a `useEffect` install would land *after* a child's
-  `useWebMCP` already read `document.modelContext` — and tools would never register. The
+  `useEmbinder` hook already read `document.modelContext` — and tools would never register. The
   install happens in the render path (`ensureShim`) to beat the children.
 - The shim + ws socket are a **module-scope singleton** (`createShim` / `ensureShim`), so
   React StrictMode's mount→unmount→mount cannot kill the socket.
@@ -85,8 +92,8 @@ surface is `index.ts`, which exports:
 - On an incoming `{ type: 'call' }` it looks up the local descriptor, runs its `execute`, and
   posts `{ type: 'result', id, result }` (or `error`) back. Phase events (`intent`/`gate`/…)
   are routed to the spotlight's phase listener instead.
-- `viz` dynamically imports `./spotlight.js`; `chat` dynamically imports `./chat/ChatBubble.js`
-  — both **code-split, zero cost when off**.
+- `viz` dynamically imports `./spotlight.js`. The resident chat bubble is dynamically imported and
+  mounted by default; pass `chat={false}` to opt out.
 
 ### `model-context.ts`
 `getModelContext()` feature-detects `document.modelContext ?? navigator.modelContext`. Defines

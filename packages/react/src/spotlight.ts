@@ -6,6 +6,10 @@
 import { driver, type Driver, type Config } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { resolveAgentTarget } from './resolve-target.js';
+import {
+  createEmbinderMotionPolicy,
+  type EmbinderMotionPolicy,
+} from './motion-policy.js';
 
 export interface PhaseMessage {
   type: 'intent' | 'gate' | 'decided' | 'call' | 'done' | 'focus';
@@ -42,6 +46,7 @@ const CSS = `
 .gmc-popover.gmc-denied .driver-popover-title{color:#ff8a8a}
 .gmc-popover.gmc-done{border-color:rgba(77,214,255,.45);box-shadow:0 0 0 1px rgba(77,214,255,.4),0 18px 44px -12px rgba(0,0,0,.7)}
 .gmc-popover.gmc-done .driver-popover-title{color:#7fe3ff}
+.gmc-popover.gmc-motion-reduced{animation:none}
 
 .gmc-approve-link{display:inline-block;margin-top:10px;color:#8fd3ff;font-weight:600;text-decoration:none;font-size:12.5px}
 .gmc-approve-link:hover{color:#bfe6ff}
@@ -75,7 +80,10 @@ function humanize(name: string): string {
   return esc(words.charAt(0).toUpperCase() + words.slice(1));
 }
 
-export function createSpotlight(decideBase?: string): Spotlight {
+export function createSpotlight(
+  decideBase?: string,
+  providedMotion?: EmbinderMotionPolicy,
+): Spotlight {
   let approverToken: string | undefined;
   if (decideBase) {
     fetch(`${decideBase}/approver-token`)
@@ -86,17 +94,26 @@ export function createSpotlight(decideBase?: string): Spotlight {
       .catch(() => {});
   }
   injectStyle();
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const motion = providedMotion ?? createEmbinderMotionPolicy();
+  const ownsMotion = !providedMotion;
+  let reduce = motion.reduced;
 
-  const base: Config = {
+  const base = (): Config => ({
     animate: !reduce,
     overlayColor: 'rgba(2,6,23,0.6)',
     stagePadding: 6,
     stageRadius: 8,
     popoverClass: 'gmc-popover',
     disableActiveInteraction: false,
-  };
-  const d: Driver = driver(base);
+  });
+  const d: Driver = driver(base());
+  const unsubscribeMotion = motion.subscribe((nextReduced) => {
+    reduce = nextReduced;
+    d.setConfig(base());
+    document.querySelectorAll<HTMLElement>('.gmc-popover').forEach((popover) => {
+      popover.classList.toggle('gmc-motion-reduced', reduce);
+    });
+  });
 
   // a11y: spotlight is purely visual, so mirror every phase to a polite live region (T-K5).
   const live = document.createElement('div');
@@ -138,9 +155,9 @@ export function createSpotlight(decideBase?: string): Spotlight {
     cancelClear();
     const decideId = opts.decide;
     d.setConfig({
-      ...base,
+      ...base(),
       disableActiveInteraction: !!opts.lock,
-      popoverClass: opts.klass ? `gmc-popover ${opts.klass}` : 'gmc-popover',
+      popoverClass: ['gmc-popover', opts.klass, reduce ? 'gmc-motion-reduced' : ''].filter(Boolean).join(' '),
       // Wire the Approve/Deny buttons embedded in the description (driver.js hides its own
       // footer when showButtons is empty, so we can't rely on footerButtons).
       onPopoverRender:
@@ -243,6 +260,8 @@ export function createSpotlight(decideBase?: string): Spotlight {
     },
     destroy() {
       cancelClear();
+      unsubscribeMotion();
+      if (ownsMotion) motion.destroy();
       d.destroy();
       live.remove();
     },

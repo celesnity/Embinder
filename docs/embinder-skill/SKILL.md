@@ -49,8 +49,11 @@ the framework-neutral bridge.
   schemas or current selection so a late context snapshot cannot strand the agent.
 - Classify every tool in `embinder.policy.json`. The server policy is authoritative.
 - Route built-in chat and external MCP calls through the same `runGatedCall` path.
-- Keep destructive approval outside the controlled tab unless the user explicitly opts into inline
-  approval.
+- Use the relay's inline Approve/Deny gate for destructive actions. Navigation and inspection must
+  not be labelled destructive merely because they cross a page or module boundary.
+- Treat embedded iframes and microfrontends as separate browser surfaces. Keep their sandbox in
+  place; expose explicit actions and context through a validated host proxy rather than scraping
+  their DOM or giving the iframe direct relay credentials.
 - Reuse the official mascot, ghost cursor, spotlight, and phase behavior. Do not substitute a static
   icon or a weaker imitation.
 
@@ -101,6 +104,11 @@ Add navigation coverage for every reachable page. Tool descriptions must say whe
 valid, what it changes, and which identifiers or prerequisites it needs. Schemas must represent real
 required fields and constraints rather than a generic object when the product knows the schema.
 
+For every supported browser platform, implement the same contract: page inventory, navigation,
+live current-screen context, callable actions, policy classification, anchors where the owning DOM
+is reachable, unregister/reconnect lifecycle, and real-browser proof. Framework support is complete
+only when each adapter implements this contract; a bubble alone is not an integration.
+
 ### 5. Implement the transport and lifecycle
 
 1. Install the provider or framework-neutral bridge exactly once at the client entry.
@@ -112,6 +120,10 @@ required fields and constraints rather than a generic object when the product kn
    never return after animation and swallow the action.
 6. Return a small structured result or an explicit error for every call.
 7. Keep live handlers free of stale closures.
+8. For a sandboxed iframe or microfrontend, make the host own relay registration and policy. The
+   child may publish bounded context and explicit action descriptors over a typed `postMessage`
+   contract; the host validates `event.source`, forwards a scoped action call, and tears it down on
+   iframe reload or unmount.
 
 ### 6. Implement every capability
 

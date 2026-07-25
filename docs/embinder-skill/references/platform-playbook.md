@@ -158,8 +158,11 @@ resources. Never return `{ ok: true }` when nothing changed.
 
 ### React
 
-Use `EmbinderProvider`, `useWebMCP`, and `grabAnchor`. Read `integration.md`. Install the provider
-during the root render so child tool declarations see `document.modelContext`.
+Use `EmbinderProvider`, `useEmbinder`, `useRoute`, and the exported agent-aware components or
+`grabAnchor`. `useEmbinder` is the current pointer primitive: it registers one explicit action,
+keeps its handler live, provides bounded context, and returns its anchor binding. `useRoute`
+declares the app's real navigation adapter and produces `ui_navigate`. Install the provider during
+the root render so child tool declarations see `document.modelContext`.
 
 ### Other browser frameworks
 
@@ -186,6 +189,21 @@ On the wire, `inputSchema` is JSON Schema:
 ```
 
 Do not send a Zod raw shape from a direct-wire client.
+
+### Sandboxed iframes and microfrontends
+
+An iframe with `sandbox="allow-scripts"` has an opaque origin by design. Do not remove that
+boundary, scrape its DOM from the host, or connect it directly to the relay with a copied token.
+Use the parent as a capability proxy:
+
+1. The child publishes bounded `embinder:context` and receives `embinder:call` through its existing
+   typed host bridge.
+2. The parent validates `event.source === iframe.contentWindow`, registers stable host tools, and
+   forwards only declared actions to that iframe instance.
+3. The child responds with `embinder:result`; the parent resolves the original agent call and removes
+   the capability/context when the iframe reloads or unmounts.
+4. Tool risk remains authoritative in the host relay policy. Navigation/inspection are `read`;
+   recorded decisions, dispatches, and equipment-affecting commands are `destructive`.
 
 ## 6. Prove transport, context, and readiness
 

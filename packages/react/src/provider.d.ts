@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import type { EmbinderMotionMode } from './motion-policy.js';
 export declare function sendEmbinderContext(name: string, state: unknown): void;
 export declare function registerEmbinderScope(scope: {
     id: string;
@@ -15,6 +16,8 @@ export interface EmbinderProviderProps {
     token?: string;
     /** T-K: enable the agent-action spotlight + gate visualization (D7 polish, off by default). */
     viz?: boolean;
+    /** Mascot and spotlight motion. `system` respects `prefers-reduced-motion` (the default). */
+    motion?: EmbinderMotionMode;
     /**
      * The resident agent bubble. Mounted by DEFAULT (D-9) — config comes from the relay's
      * /chat-config (env). Pass a config object to override, or `false` to opt out
@@ -22,4 +25,4 @@ export interface EmbinderProviderProps {
      */
     chat?: import('./chat/ChatBubble.js').ChatBubbleConfig | false;
 }
-export declare function EmbinderProvider({ children, url, token, viz, chat }: EmbinderProviderProps): import("react").JSX.Element;
+export declare function EmbinderProvider({ children, url, token, viz, motion, chat }: EmbinderProviderProps): import("react").JSX.Element;

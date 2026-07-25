@@ -14,6 +14,10 @@
 import type { PhaseMessage } from './spotlight.js';
 import { setGhostController } from './actions/ghost-bridge.js';
 import { resolveAgentTarget } from './resolve-target.js';
+import {
+  createEmbinderMotionPolicy,
+  type EmbinderMotionPolicy,
+} from './motion-policy.js';
 
 export interface GhostCursor {
   handle(m: PhaseMessage): void;
@@ -96,6 +100,12 @@ const CSS = `
   .gmc-ghost-ripple{animation:gmc-ghost-ripple .55s ease-out forwards}
   .gmc-ghost-spark{animation:gmc-ghost-spark .5s ease-out forwards}
 }
+.gmc-ghost.is-motion-full .gmc-ghost-body{animation:gmc-ghost-float 3.2s ease-in-out infinite}
+.gmc-ghost.is-motion-full.is-pending .gmc-ghost-body{animation:gmc-ghost-float 3.2s ease-in-out infinite,gmc-ghost-glow 1.1s ease-in-out infinite}
+.gmc-ghost.is-motion-full .gmc-ghost-type i{animation:gmc-ghost-dot 1.1s ease-in-out infinite}
+.gmc-ghost.is-motion-full .gmc-ghost-type i:nth-child(2){animation-delay:.15s}
+.gmc-ghost.is-motion-full .gmc-ghost-type i:nth-child(3){animation-delay:.3s}
+.gmc-ghost.is-motion-reduced .gmc-ghost-body,.gmc-ghost.is-motion-reduced .gmc-ghost-type i,.gmc-ghost.is-motion-reduced .gmc-ghost-img{animation:none!important}
 @keyframes gmc-ghost-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-6px) rotate(1.5deg)}}
 @keyframes gmc-ghost-glow{0%,100%{filter:drop-shadow(0 0 10px rgba(229,181,59,.65)) drop-shadow(0 4px 7px rgba(0,0,0,.4))}50%{filter:drop-shadow(0 0 18px rgba(229,181,59,1)) drop-shadow(0 4px 7px rgba(0,0,0,.4))}}
 @keyframes gmc-ghost-dot{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
@@ -114,12 +124,22 @@ function injectStyle() {
   document.head.appendChild(s);
 }
 
-export function createGhostCursor(): GhostCursor {
+export function createGhostCursor(providedMotion?: EmbinderMotionPolicy): GhostCursor {
   injectStyle();
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const motion = providedMotion ?? createEmbinderMotionPolicy();
+  const ownsMotion = !providedMotion;
+  let reduce = motion.reduced;
+  if (motion.hidden) {
+    return {
+      handle() {},
+      destroy() { if (ownsMotion) motion.destroy(); },
+    };
+  }
 
   const el = document.createElement('div');
   el.className = 'gmc-ghost';
+  el.classList.toggle('is-motion-full', motion.mode === 'full');
+  el.classList.toggle('is-motion-reduced', reduce);
   el.setAttribute('aria-hidden', 'true');
   el.innerHTML =
     '<div class="gmc-ghost-tilt"><div class="gmc-ghost-body"><div class="gmc-ghost-img"></div></div></div>' +
@@ -368,6 +388,16 @@ export function createGhostCursor(): GhostCursor {
   // Appear immediately, then start roaming.
   jumpTo(curX, curY);
   let active: { id: string; name: string; itemId?: string } | undefined;
+  const unsubscribeMotion = motion.subscribe((nextReduced) => {
+    if (nextReduced === reduce) return;
+    reduce = nextReduced;
+    el.classList.toggle('is-motion-reduced', reduce);
+    if (reduce) {
+      stopWander();
+    } else if (!active && !target && !performing) {
+      startWander();
+    }
+  });
   startWander();
 
   setGhostController({
@@ -444,6 +474,8 @@ export function createGhostCursor(): GhostCursor {
     destroy() {
       setGhostController(undefined);
       cancelIdle();
+      unsubscribeMotion();
+      if (ownsMotion) motion.destroy();
       stopWander();
       if (sayTimer) clearTimeout(sayTimer);
       if (followRaf) cancelAnimationFrame(followRaf);

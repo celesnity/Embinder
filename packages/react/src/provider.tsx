@@ -16,6 +16,7 @@ import { useEffect, useState, type ReactNode, type ReactElement } from 'react';
 import { getModelContext, type ModelContextSurface, type ToolDescriptor } from './model-context.js';
 import { installActionTools } from './actions/registerActionTools.js';
 import type { PhaseMessage, Spotlight } from './spotlight.js'; // type-only: no driver.js at runtime
+import { createEmbinderMotionPolicy, type EmbinderMotionMode } from './motion-policy.js';
 
 const DEFAULT_URL = 'ws://127.0.0.1:7331/app';
 const PHASE_TYPES = new Set(['intent', 'gate', 'decided', 'focus']);
@@ -206,6 +207,8 @@ export interface EmbinderProviderProps {
   token?: string;
   /** T-K: enable the agent-action spotlight + gate visualization (D7 polish, off by default). */
   viz?: boolean;
+  /** Mascot and spotlight motion. `system` respects `prefers-reduced-motion` (the default). */
+  motion?: EmbinderMotionMode;
   /**
    * The resident agent bubble. Mounted by DEFAULT (D-9) — config comes from the relay's
    * /chat-config (env). Pass a config object to override, or `false` to opt out
@@ -214,7 +217,14 @@ export interface EmbinderProviderProps {
   chat?: import('./chat/ChatBubble.js').ChatBubbleConfig | false;
 }
 
-export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = false, chat }: EmbinderProviderProps) {
+export function EmbinderProvider({
+  children,
+  url = DEFAULT_URL,
+  token,
+  viz = false,
+  motion = 'system',
+  chat,
+}: EmbinderProviderProps) {
   ensureShim(url, token);
 
   // Register the built-in action tools (scroll/navigate/drag) through the relay shim.
@@ -231,14 +241,15 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
     let sp: Spotlight | undefined;
     let ghost: import('./ghost-cursor.js').GhostCursor | undefined;
     let cancelled = false;
+    const motionPolicy = createEmbinderMotionPolicy(motion);
     Promise.all([import('./spotlight.js'), import('./ghost-cursor.js')]).then(
       ([{ createSpotlight }, { createGhostCursor }]) => {
         if (cancelled) return;
-        sp = createSpotlight(httpBaseFrom(url));
-        ghost = createGhostCursor();
+        sp = createSpotlight(httpBaseFrom(url), motionPolicy);
+        ghost = motionPolicy.hidden ? undefined : createGhostCursor(motionPolicy);
         singleton!.setPhaseListener((m) => {
           sp!.handle(m);
-          ghost!.handle(m);
+          ghost?.handle(m);
         });
       },
     );
@@ -252,8 +263,9 @@ export function EmbinderProvider({ children, url = DEFAULT_URL, token, viz = fal
       singleton?.setPhaseListener(undefined);
       sp?.destroy();
       ghost?.destroy();
+      motionPolicy.destroy();
     };
-  }, [viz, url]);
+  }, [motion, viz, url]);
 
   // D-9: the resident bubble is the default — dynamic-imported unless explicitly opted out.
   const [Bubble, setBubble] = useState<null | ((c: Record<string, unknown>) => ReactElement)>(null);
