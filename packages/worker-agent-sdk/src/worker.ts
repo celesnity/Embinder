@@ -34,6 +34,13 @@ export interface RunOptions {
   onError?: (error: BlackboardApiError) => void;
   /** Liveness cadence for Blackboard's agent directory. Defaults to 30 seconds. */
   heartbeatIntervalMs?: number;
+  /**
+   * Called each time the initial `registerAgent` call fails (e.g. Blackboard's DNS name isn't
+   * resolvable yet because its container is still building/starting — a real race when this
+   * worker has no `depends_on` on it). Retried with capped exponential backoff instead of
+   * throwing, so `run()` waits out that startup window rather than crashing the process.
+   */
+  onRegisterRetry?: (error: unknown, attempt: number, nextDelayMs: number) => void;
 }
 
 function sleep(ms: number): { promise: Promise<void>; cancel: () => void } {
@@ -52,6 +59,7 @@ export class WorkerAgent {
   private readonly config: WorkerAgentConfig;
   private readonly handlers = new Map<string, TaskHandler>();
   private stopped = true;
+  private stopRequested = false;
   private cancelSleep: (() => void) | null = null;
 
   constructor(config: WorkerAgentConfig) {
@@ -75,6 +83,7 @@ export class WorkerAgent {
    * times. */
   stop(): void {
     this.stopped = true;
+    this.stopRequested = true;
     this.cancelSleep?.();
   }
 
@@ -88,10 +97,8 @@ export class WorkerAgent {
       );
     }
 
-    const agent = await registerAgent(this.config, {
-      name: this.config.name,
-      capabilities: this.config.capabilities,
-    });
+    const agent = await this.registerWithRetry(options);
+    if (!agent) return; // stop() was called while waiting to retry
     const agentId = agent.id;
     const heartbeatIntervalMs = options.heartbeatIntervalMs ?? 30_000;
     let nextHeartbeatAt = Date.now() + heartbeatIntervalMs;
@@ -110,6 +117,33 @@ export class WorkerAgent {
         this.cancelSleep = cancel;
         await promise;
         this.cancelSleep = null;
+      }
+    }
+  }
+
+  /** Calls `registerAgent`, retrying with capped exponential backoff (1s, 2s, 4s, ... up to 30s)
+   * on failure instead of throwing — a fetch to Blackboard can fail simply because its
+   * container hasn't finished starting yet, which is expected when this worker has no
+   * `depends_on` on it. Returns `null` if `stop()` is called while waiting between attempts. */
+  private async registerWithRetry(
+    options: RunOptions,
+  ): Promise<Awaited<ReturnType<typeof registerAgent>> | null> {
+    let attempt = 0;
+    for (;;) {
+      try {
+        return await registerAgent(this.config, {
+          name: this.config.name,
+          capabilities: this.config.capabilities,
+        });
+      } catch (error) {
+        attempt += 1;
+        const delayMs = Math.min(1_000 * 2 ** (attempt - 1), 30_000);
+        options.onRegisterRetry?.(error, attempt, delayMs);
+        const { promise, cancel } = sleep(delayMs);
+        this.cancelSleep = cancel;
+        await promise;
+        this.cancelSleep = null;
+        if (this.stopRequested) return null;
       }
     }
   }
